@@ -7,6 +7,8 @@ import numpy as np
 def test_function():
     print("Prueba 1")
 
+print("Prueba 3")
+
 
 
 def get_tau(mic_1, mic_2, fs=44100):
@@ -290,4 +292,3 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase"):
     return temp_signal
 
 
-#Si todo sale bien deberías de estar leyendo esto
