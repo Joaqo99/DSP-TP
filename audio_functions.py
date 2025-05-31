@@ -14,7 +14,7 @@ def get_tau(mic_1, mic_2, fs=44100):
     Output:
         t: float type object. Arrival time diference
     """
-    corr = signal.correlate(mic_1, mic_2)
+    corr = signal.correlate(mic_1, mic_2, mode='full')
     n_corr = np.arange(-len(mic_1), len(mic_2) - 1)
     t = (n_corr[np.argmax(corr)]/fs)
     return t
@@ -28,7 +28,7 @@ def get_direction(d, t, c=340, fs=44100):
         - c: Int type object. Sound propagation speed.
         - fs: Int type object. Sample Frequency.
     """
-    angle = np.arccos(d*t/c)
+    angle = np.arccos(c*t/d)
     angle = np.rad2deg(angle)
     return angle
 
