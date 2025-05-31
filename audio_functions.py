@@ -29,6 +29,8 @@ def get_direction(d, t, c=340, fs=44100):
         - fs: Int type object. Sample Frequency.
     """
     angle = np.arccos(d*t/c)
+    angle = np.rad2deg(angle)
+    return angle
 
 def conv(in_signal, ir):
     """Performs convolution"""
