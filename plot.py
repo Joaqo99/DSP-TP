@@ -2,7 +2,6 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from scipy import signal
 import numpy as np
-import torch
 import audio_functions as auf
 
 nominal_oct_central_freqs = [31.5, 63, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 160000]
@@ -13,8 +12,8 @@ def plot_signal(*vectors, xticks=None, yticks=None, title=None, file_name=False,
     Plots multiple time signals over the same plot.
     Input:
         - vectors: Optional amount of values. For each vector: Dict type object. Must contain:
-            - time vector: array or Torch.tensor type object. Time vector.
-            - signal: array or Torch.tensor type object. Amplitudes vector.
+            - time vector: array type object. Time vector.
+            - signal: array or type object. Amplitudes vector.
             - label: str type object. 
             - color: string type object.
 
@@ -56,10 +55,7 @@ def plot_signal(*vectors, xticks=None, yticks=None, title=None, file_name=False,
         else:
             #turn to numpy
             n = vector["time vector"]
-
-            if type(n) == torch.Tensor:
-                n = n.numpy().astype(np.float32)
-            elif type(n) != np.ndarray:
+            if type(n) != np.ndarray:
                 raise ValueError("Time vector must be an array or a Tensor")
 
         #signal vector
@@ -68,9 +64,7 @@ def plot_signal(*vectors, xticks=None, yticks=None, title=None, file_name=False,
         else:
             #turn to numpy
             signal = vector["signal"]
-            if type(signal) == torch.Tensor:
-                signal = signal.numpy().astype(np.float32)
-            elif type(signal) != np.ndarray:
+            if type(signal) != np.ndarray:
                 raise ValueError("Audio signal must be an array or a Tensor")
 
         label = vector["label"] if "label" in vector.keys() else None
@@ -188,7 +182,7 @@ def plot_fft_mag(*in_signals, fs=44100, N=1, title=False, legend=False, show=Tru
     Plots the magnitude of the fast fourier transform of an arbitrary ammount of audio signals.
     Inputs:
         - in_signals : Optional amount of values. For each signal: Dict type object. Must contain:
-            - audio signal: array or Torch.tensor type object.
+            - audio signal: array type object.
             - label: string type object.
             - color: string type object.
     """
@@ -200,9 +194,7 @@ def plot_fft_mag(*in_signals, fs=44100, N=1, title=False, legend=False, show=Tru
             raise Exception("Audio signal key missing")
         else:
             audio_signal = in_signal["audio signal"]
-            if type(audio_signal) == torch.Tensor:
-                audio_signal = audio_signal.numpy().astype(np.float32)
-            elif type(audio_signal) != np.ndarray:
+            if type(audio_signal) != np.ndarray:
                 raise ValueError("Audio signal must be an array or a Tensor")
 
         label = in_signal["label"] if "label" in in_signal.keys() else None
@@ -262,7 +254,7 @@ def plot_fft_phase(*in_signals, fs=44100, N=1, title=False, legend=False, show=T
     Plots the phase of the fast fourier transform of an arbitrary ammount of audio signals.
     Inputs:
         - in_signals : Optional amount of values. For each signal: Dict type object. Must contain:
-            - audio signal: array or Torch.tensor type object.
+            - audio signal: array type object.
             - label: string type object.
             - color: string type object.
     """
@@ -273,9 +265,7 @@ def plot_fft_phase(*in_signals, fs=44100, N=1, title=False, legend=False, show=T
             raise Exception("Audio signal key missing")
         else:
             audio_signal = in_signal["audio signal"]
-            if type(audio_signal) == torch.Tensor:
-                audio_signal = audio_signal.numpy().astype(np.float32)
-            elif type(audio_signal) != np.ndarray:
+            if type(audio_signal) != np.ndarray:
                 raise ValueError("Audio signal must be an array or a Tensor")
 
         label = in_signal["label"] if "label" in in_signal.keys() else None
@@ -327,7 +317,7 @@ def unit_plot(*vectors, xticks=None, yticks=None, title=None, file_name=False, g
     Plots a unities vector.
     Input:
         - vectors: Optional amount of values. For each vector: Dict type object. Must contain:
-            - array: array or Torch.tensor type object. Amplitudes vector.
+            - array: array type object. Amplitudes vector.
             - label: str type object. 
             - color: string type object.
 
@@ -368,9 +358,7 @@ def unit_plot(*vectors, xticks=None, yticks=None, title=None, file_name=False, g
         else:
             #turn to numpy
             arr = vector["array"]
-            if type(arr) == torch.Tensor:
-                arr = arr.numpy().astype(np.float32)
-            elif type(arr) != np.ndarray:
+            if type(arr) != np.ndarray:
                 raise ValueError("Array must be an ndarray or a Tensor")
 
         label = vector["label"] if "label" in vector.keys() else None

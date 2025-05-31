@@ -4,6 +4,18 @@ import numpy as np
 from scipy import signal
 import numpy as np
 
+def get_tau(mic_1, mic_2):
+    """
+    Gets the arrival time diference between 2 microphones
+    Input:
+        - mic_1: array type object. Microhpone 1 signal.
+        - mic_2: array type object. Microhpone 2 signal.
+    Output:
+        t: float type object. Arrival time diference
+    """
+    pass
+
+
 def conv(in_signal, ir):
     """Performs convolution"""
     return signal.fftconvolve(in_signal, ir, mode='same')
