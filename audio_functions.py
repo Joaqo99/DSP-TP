@@ -4,6 +4,12 @@ import numpy as np
 from scipy import signal
 import numpy as np
 
+print("Carmelo gay")
+
+
+
+
+
 def get_tau(mic_1, mic_2, fs=44100):
     """
     Gets the arrival time diference between 2 microphones

@@ -1,1 +1,0 @@
-El dueño del repo es gay
