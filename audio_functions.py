@@ -4,13 +4,6 @@ import numpy as np
 from scipy import signal
 import numpy as np
 
-def test_function():
-    print("Prueba 1")
-    print("Prueba 2")
-    print("Prueba 4")
-
-
-
 def get_tau(mic_1, mic_2, fs=44100):
     """
     Gets the arrival time diference between 2 microphones
