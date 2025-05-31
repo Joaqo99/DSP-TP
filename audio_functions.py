@@ -283,3 +283,6 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase"):
     
     temp_signal = np.fft.irfft(in_rfft)
     return temp_signal
+
+
+#Si todo sale bien deberías de estar leyendo esto
