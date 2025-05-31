@@ -14,10 +14,10 @@ def get_tau(mic_1, mic_2, fs=44100):
     Output:
         t: float type object. Arrival time diference
     """
-    corr = signal.correlate(mic_1, mic_2)
-    n_corr = np.arange(len(mic_1), len(mic_2) - 1)
+    corr = signal.correlate(mic_1, mic_2, mode='full')
+    n_corr = np.arange(-len(mic_1), len(mic_2) - 1)
     t = (n_corr[np.argmax(corr)]/fs)
-    return t
+    return t, n_corr
 
 def get_direction(d, t, c=340, fs=44100):
     """

@@ -1,6 +1,7 @@
 import numpy as np
 import plot
 from scipy.signal import correlate
+import audio_functions as af
 c = 343              
 d = 0.1              # Distancia entre mics
 
@@ -16,17 +17,20 @@ pulse = np.zeros_like(t)
 pulse[int(len(t)/2)] = 1.0  
 
 
-# Cálculo del retardo
-t1 = (d * np.cos(theta)) / c  
-sample_delay = int(np.round(t1 * fs)) 
 
-print(f"TDOA = {t1:.6f} s ({sample_delay} muestras)")
+
+sample_delay = int((d * np.cos(theta)) / c * fs)
 
 
 # Señales en los micrófonos
 y1 = pulse
 y2 = np.roll(pulse, sample_delay)  # señal retardada
 
+# Cálculo del retardo
+t1 = af.get_tau(y1,y2)
+  
+
+print(f"TDOA = {t1:.6f} s ({sample_delay} muestras)")
 
 # Cálculo de TDOA con correlación cruzada
 corr = correlate(y2, y1, mode='full')
