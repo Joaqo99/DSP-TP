@@ -2,9 +2,6 @@ import soundfile as sf
 from IPython.display import Audio
 import numpy as np
 from scipy import signal
-import torchaudio
-import torch
-from torchaudio import transforms
 import numpy as np
 
 def conv(in_signal, ir):
@@ -137,11 +134,8 @@ def to_mono(audio):
         - audio_mono: audio converted
     """
     #error handling
-
-
-
-    if  type(audio) != np.ndarray and type(audio) != torch.Tensor:
-        raise ValueError("audio must be a vector")
+    if  type(audio) != np.ndarray:
+        raise ValueError("audio must be a ndarray")
     if len(audio.shape) == 1:
         raise Exception("Audio is already mono")
     elif audio.shape[0] != 2 and audio.shape[1] != 2: 
@@ -209,7 +203,7 @@ def get_fft(in_signal, fs, normalize=True, output="mag-phase"):
     """
     Performs a fast fourier transform over the input signal. As we're working with real signals, we perform the rfft.
     Input:
-        - in_signal: array or Torch tensor type object. input signal.
+        - in_signal: array or type object. input signal.
         - fs: int type object. Sample frequency
         - normalize: bool type object. If true, returns the normalized magnitude of the input signal. If output is "complex" it wont work
         - output: str type object. Output format, can be:
