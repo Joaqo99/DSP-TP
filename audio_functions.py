@@ -4,17 +4,31 @@ import numpy as np
 from scipy import signal
 import numpy as np
 
-def get_tau(mic_1, mic_2):
+def get_tau(mic_1, mic_2, fs=44100):
     """
     Gets the arrival time diference between 2 microphones
     Input:
         - mic_1: array type object. Microhpone 1 signal.
         - mic_2: array type object. Microhpone 2 signal.
+        - fs: 
     Output:
         t: float type object. Arrival time diference
     """
-    pass
+    corr = signal.correlate(mic_1, mic_2)
+    n_corr = np.arange(len(mic_1), len(mic_2) - 1)
+    t = (n_corr[np.argmax(corr)]/fs)
+    return t
 
+def get_direction(d, t, c=340, fs=44100):
+    """
+    Returns direction of arrival between 2 microphones
+    Input:
+        - d: float type object. Distance between microphones.
+        - t: float type object. Time arrival difference between microphones.
+        - c: Int type object. Sound propagation speed.
+        - fs: Int type object. Sample Frequency.
+    """
+    angle = np.arccos(d*t/c)
 
 def conv(in_signal, ir):
     """Performs convolution"""
