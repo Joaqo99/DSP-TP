@@ -6,6 +6,7 @@ import numpy as np
 
 def test_function():
     print("Prueba 1")
+    print("Prueba 2")
 
 print("Prueba 3")
 
