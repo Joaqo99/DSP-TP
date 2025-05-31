@@ -4,9 +4,8 @@ import numpy as np
 from scipy import signal
 import numpy as np
 
-print("Carmelo gay")
-
-
+def test_function():
+    print("Prueba 1")
 
 
 
