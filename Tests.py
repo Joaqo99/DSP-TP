@@ -2,6 +2,7 @@ import numpy as np
 import plot
 from scipy.signal import correlate
 import audio_functions as af
+
 c = 343              
 d = 0.1              # Distancia entre mics
 
@@ -39,5 +40,20 @@ mic2_dict = {"time vector": t,"signal": y2,"label": "Micrófono 2","color": "red
 
 plot.plot_signal(mic1_dict, mic2_dict,title=f"Señales en micrófonos (θ = {est_theta}°)", grid=True, legend=True, figsize=(10, 4),
             xlimits=(0.004, 0.006))  # Ajustá según dónde cae el pulso)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

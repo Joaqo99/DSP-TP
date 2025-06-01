@@ -23,6 +23,26 @@ def get_tau(mic_1, mic_2, fs=44100):
     #tau = lag / fs                  # Retardo en segundos
     return tau
 
+def get_taus_n_mic(mic_signals, fs=44100):
+    """
+    Calcula el tiempo de arribo relativo (TDOA) entre el primer micrófono y los demás.
+
+    Input:
+        - mic_signals: lista de arrays. Cada array es la señal de un micrófono.
+        - fs: frecuencia de muestreo
+
+    Output:
+        - taus: lista de retardos en segundos. El primer micrófono tiene retardo 0.
+    """
+    reference = mic_signals[0]
+    taus = [0.0]  # El micrófono de referencia tiene retardo 0
+
+    for i in range(1, len(mic_signals)):
+        tau = get_tau(reference, mic_signals[i], fs)
+        taus.append(tau)
+    
+    return taus
+
 def get_direction(d, t, c=340, fs=44100):
     """
     Returns direction of arrival between 2 microphones
