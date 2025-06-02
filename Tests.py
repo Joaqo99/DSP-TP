@@ -8,7 +8,7 @@ d = 0.1              # Distancia entre mics
 theta_deg = 60       
 theta = np.deg2rad(theta_deg)
 
-fs = 44100          
+fs = 44100
 duration = 0.01      # 1 seg
 t = np.linspace(0, duration, int(fs * duration))
 
