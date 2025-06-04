@@ -395,7 +395,7 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase"):
     return temp_signal
 
 
-def rir(tau=0.015, fs=44100, phi=-80, duration=0.01):
+def rir(tau=0.15, fs=44100, phi=-80, duration=0.1):
     """
     Generates a synthetic impulse response
 
@@ -433,7 +433,7 @@ def rir(tau=0.015, fs=44100, phi=-80, duration=0.01):
     if phi > 0:
         raise ValueError("Phi debe ser un número negativo.")
         
-    A = 1 
+    A = 1
     fs = 44100
     #Duracion del ruido
     t = np.linspace(0, duration, int(fs * duration))       
@@ -448,9 +448,10 @@ def rir(tau=0.015, fs=44100, phi=-80, duration=0.01):
     #Normalizo la señal
     rir_synth = rir_synth / np.max(np.abs(rir_synth))
     
-    return rir_synth, fs, t
+    return rir_synth
 
-def apply_reverb_synth(mic_signals, fs=44100, tau=0.015, phi=-60, duration=0.01):
+
+def apply_reverb_synth(mic_signals, fs=44100, tau=0.15, phi=-80, duration=0.1):
     """
     Aplica reverberación a una lista de señales de micrófonos.
 
@@ -473,12 +474,15 @@ def apply_reverb_synth(mic_signals, fs=44100, tau=0.015, phi=-60, duration=0.01)
         Lista de señales con reverberación agregada.
     """
     mic_signals_rir = []
-    rir_sim = rir(tau=tau, fs=fs, phi=phi, duration=duration)  # generar solo 1 vez
-
+    
     for sig in mic_signals:
-        sig = np.asarray(sig).flatten()
-        señal_con_ruido = np.convolve(sig, rir_sim, mode="same")
-        mic_signals_rir.append(señal_con_ruido)
-
+        sig = np.asarray(sig).flatten()     # Pasa a array y lo deja en 1 Dimension
+        rir_synth = rir(tau=tau, fs=fs, phi=phi, duration=duration)  # Calculo el RIR sintetico
+        # Convolución
+        sig_full = np.convolve(sig, rir_synth, mode="full")
+        # Recorte alineado
+        start = (int(fs*duration))//2
+        signal_rir = sig_full[start:start+(int(fs*duration))]
+        mic_signals_rir.append(signal_rir)
+      
     return mic_signals_rir
-

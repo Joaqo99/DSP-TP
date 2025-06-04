@@ -4,13 +4,14 @@ import audio_functions as af
 from scipy.signal import correlate
 
 
+#-----------------------------------------------------------------------
 c = 343    
 fs=44100
-duration = 0.01      # 1 seg
+duration = 0.1      # duracion de la señal
 
 t = np.linspace(0, duration, int(fs * duration))
 
-n_mics = 7
+n_mics = 4
 d = 0.1  # distancia entre micrófonos (en línea recta)
 
 # Genero señales con retardos simulados para un ángulo de llegada dado
@@ -25,7 +26,7 @@ for i in range(n_mics):
     delay_samples = int(delay_seg * fs)          
     sample_delays.append(delay_samples)
 
-# Genero señales
+# Genero señales--------------------------------------------------------
 pulse = np.zeros_like(t)
 pulse[int(len(t)/2)] = 1.0
 
@@ -38,12 +39,13 @@ for delay in sample_delays:
 
 
 # Agrego ruido a las señales
-mic_signals_rir = af.apply_reverb_synth(mic_signals, fs=fs, phi = -60, duration=duration)
+mic_signals_rir = af.apply_reverb_synth(mic_signals, fs=fs, phi = -80, duration=duration, tau=7.23e-3)
 
-
+# Cálculos con las señales obtenidos-------------------------------------
 
 # Calculo los TDOA respecto al primer micrófono // Se puede probar con CC o GCC (get_tau / get_taus_gcc_phat)
-tau_list = af.get_taus_gcc_phat_n_mic(mic_signals, fs) 
+# Aca probar entre mic_signals y mic_signals_rir para ver diferencias
+tau_list = af.get_taus_n_mic(mic_signals, fs) 
 
 # Calculo los diferentes angulos respecto a los tau anteriores
 est_theta_list = af.get_direction_n_signals(d,tau_list, c, fs)
@@ -52,16 +54,16 @@ est_theta_list = af.get_direction_n_signals(d,tau_list, c, fs)
 
 theta_prom = (np.sum(est_theta_list[1:])) / (len(est_theta_list ) - 1)     # Promedio (no considero el inicial de referencia)
 
-# Muestro los resultados
+# Muestro los resultados------------------------------------------------
 for i, (tau, est_theta) in enumerate(zip(tau_list, est_theta_list)):            # Mic 1 con valores nulos porque no hay TDOA para comparar 
     print(f"Mic {i+1}: TDOA = {tau:.6f} s, Ángulo estimado = {est_theta:.2f}°")
 
 print(f"El ángulo promedio es: {theta_prom:.2f}°")
 
-# Grafico
+# Graficos
 plot_dicts = []
 
-# Armo un diccionario por cada uno para plotear
+# Armo un diccionario de cada uno para plotear
 for i, signal in enumerate(mic_signals):
     color = f"C{i}"  
     dic = {
@@ -74,5 +76,19 @@ for i, signal in enumerate(mic_signals):
 
 # Plot 
 plot.plot_signal(*plot_dicts, title=f"Señales en micrófonos (θ = {est_theta:.2f}°)", 
-                 grid=True, legend=True, figsize=(10, 4), xlimits=(0.004, 0.008))
+                 grid=True, legend=True, figsize=(10, 4), xlimits=(0.048, 0.052))
 
+#------------------------TEMP
+
+# Hago una IR para graficar y comparar solamente
+rir_synth = af.rir(tau=7.23e-3, fs=fs, duration=duration)
+
+import matplotlib.pyplot as plt
+
+plt.plot(t, mic_signals[0], label="Señal limpia")
+plt.plot(t, mic_signals_rir[0], label="Señal con reverberación", alpha=0.7)
+plt.plot(t, rir_synth, label="IR")
+plt.legend()
+plt.grid(True)
+plt.title("Comparación señal limpia vs. reverberada")
+plt.show()
