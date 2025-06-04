@@ -24,7 +24,7 @@ y1 = pulse
 y2 = np.roll(pulse, sample_delay)  # señal retardada
 
 # Cálculo del retardo
-tau = af.get_tau(y1,y2)
+tau = af.get_tau_gcc_phat(y2,y1)
 
 print(f"TDOA = {tau:.6f} s ({sample_delay} muestras)")
 

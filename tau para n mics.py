@@ -4,20 +4,16 @@ import audio_functions as af
 from scipy.signal import correlate
 
 
-
 c = 343    
 fs=44100
 duration = 0.01      # 1 seg
 
 t = np.linspace(0, duration, int(fs * duration))
 
-
-
-# Simulación de 3 micrófonos
-n_mics = 6
+n_mics = 7
 d = 0.1  # distancia entre micrófonos (en línea recta)
 
-# Generamos señales con retardos simulados para un ángulo de llegada dado
+# Genero señales con retardos simulados para un ángulo de llegada dado
 theta_deg = 60
 theta = np.deg2rad(theta_deg)
 
@@ -29,7 +25,7 @@ for i in range(n_mics):
     delay_samples = int(delay_seg * fs)          
     sample_delays.append(delay_samples)
 
-# Generar señales
+# Genero señales
 pulse = np.zeros_like(t)
 pulse[int(len(t)/2)] = 1.0
 
@@ -39,29 +35,28 @@ for delay in sample_delays:
     señal_retardada = np.roll(pulse, delay)  # Desplaza la señal 'pulse' en el tiempo simulando el retardo
     mic_signals.append(señal_retardada)      # Guarda la señal simulada en la lista
 
-# Calcular los TDOA respecto al primer micrófono
-tau_list = af.get_taus_n_mic(mic_signals, fs)        
+# Calculo los TDOA respecto al primer micrófono // Se puede probar con CC o GCC (get_tau / get_taus_gcc_phat)
+tau_list = af.get_taus_gcc_phat_n_mic(mic_signals, fs) 
 
-est_theta_list = []
+# Calculo los diferentes angulos respecto a los tau anteriores
+est_theta_list = af.get_direction_n_signals(d,tau_list, c, fs)
 
-# Calcular ángulos estimados
-for i, tau in enumerate(tau_list):
-    if i == 0:
-        est_theta_list.append(0)  # El micrófono de referencia no tiene ángulo (por definición)
-    else:
-        d_total = d * i  # Distancia entre mic_0 y mic_i
-        angulo = af.get_direction(d_total, tau, c=343, fs=fs)
-        est_theta_list.append(angulo)
+# Calculo el angulo promedio
 
-# Mostrar resultados
-for i, (tau, est_theta) in enumerate(zip(tau_list, est_theta_list)):
+theta_prom = (np.sum(est_theta_list[1:])) / (len(est_theta_list ) - 1)     # Promedio (no considero el inicial de referencia)
+
+# Muestro los resultados
+for i, (tau, est_theta) in enumerate(zip(tau_list, est_theta_list)):            # Mic 1 con valores nulos porque no hay TDOA para comparar 
     print(f"Mic {i+1}: TDOA = {tau:.6f} s, Ángulo estimado = {est_theta:.2f}°")
+
+print(f"El ángulo promedio es: {theta_prom:.2f}°")
 
 # Grafico
 plot_dicts = []
 
+# Armo un diccionario por cada uno para plotear
 for i, signal in enumerate(mic_signals):
-    color = f"C{i}"  # Usará colores estándar de matplotlib: C0, C1, C2...
+    color = f"C{i}"  
     dic = {
         "time vector": t,
         "signal": signal,
@@ -70,7 +65,7 @@ for i, signal in enumerate(mic_signals):
     }
     plot_dicts.append(dic)
 
-# Llamás a la función pasando los diccionarios como argumentos individuales
+# Plot 
 plot.plot_signal(*plot_dicts, title=f"Señales en micrófonos (θ = {est_theta:.2f}°)", 
                  grid=True, legend=True, figsize=(10, 4), xlimits=(0.004, 0.008))
 

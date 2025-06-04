@@ -43,6 +43,66 @@ def get_taus_n_mic(mic_signals, fs=44100):
     
     return taus
 
+
+def get_tau_gcc_phat(sig, refsig, fs=44100, interp=16):
+    """
+    Estima el retardo temporal entre dos señales (sig y refsig)
+    usando el método de Correlación Cruzada Generalizada con ponderación PHAT.
+    
+    Parámetros:
+        sig:     Señal 1 (por ejemplo, del micrófono 1)
+        refsig:  Señal 2 (por ejemplo, del micrófono 2)
+        fs:      Frecuencia de muestreo (Hz)
+        interp:  Factor de interpolación para mayor resolución temporal
+    
+    Devuelve:
+        tau:     Tiempo estimado de retardo (en segundos)
+    """
+    # Longitud total para la FFT (convolución completa)
+    n = sig.shape[0] + refsig.shape[0]
+    # FFT de ambas señales
+    SIG = np.fft.rfft(sig, n=n)
+    REFSIG = np.fft.rfft(refsig, n=n)
+    # Cálculo del espectro cruzado
+    cross_spectrum = SIG * np.conj(REFSIG)
+    # Aplicación del filtro PHAT: normalización por magnitud
+    cross_spectrum_magnitude = np.abs(cross_spectrum)
+    cross_spectrum_phat = cross_spectrum / (cross_spectrum_magnitude + np.finfo(float).eps)
+    # Transformada inversa para obtener la correlación cruzada
+    cc = np.fft.irfft(cross_spectrum_phat, n=(interp * n))
+    # Se define el máximo desplazamiento posible (número de muestras desplazadas)
+    max_shift = int(interp * n / 2)
+    # Reorganizamos los resultados para que el cero esté en el centro
+    cc_shifted = np.concatenate((cc[-max_shift:], cc[:max_shift + 1]))
+    # Localizamos el pico máximo (mayor correlación)
+    max_index = np.argmax(np.abs(cc_shifted))
+    # Calculamos el desplazamiento (en muestras)
+    shift = max_index - max_shift
+    # Convertimos el desplazamiento en tiempo (segundos)
+    tau = shift / float(interp * fs)
+
+    return tau
+
+def get_taus_gcc_phat_n_mic(mic_signals, fs=44100, interp=16):
+    """
+    Calcula el TDOA entre el primer micrófono y todos los demás usando GCC-PHAT.
+
+    Parámetros:
+        mic_signals: lista o array (n_mics x n_samples) con señales por micrófono.
+        fs: frecuencia de muestreo
+        interp: factor de interpolación para mayor resolución en la estimación
+
+    Devuelve:
+        taus: lista de retardos relativos en segundos (el primer mic tiene tau = 0)
+    """
+    reference = mic_signals[0]
+    taus = [0.0]  # El primer mic tiene tiempo de referencia
+
+    for i in range(1, len(mic_signals)):
+        tau = get_tau_gcc_phat(mic_signals[i], reference, fs=fs, interp=interp)
+        taus.append(tau)
+
+    return taus
 def get_direction(d, t, c=340, fs=44100):
     """
     Returns direction of arrival between 2 microphones
@@ -55,6 +115,30 @@ def get_direction(d, t, c=340, fs=44100):
     angle = np.arccos(c*t/d)
     angle = np.rad2deg(angle)
     return angle
+
+def get_direction_n_signals(d,taus, c=343, fs=44100):
+    """
+    Calcula los ángulos estimados de llegada del sonido para múltiples micrófonos.
+    
+    Input:
+        - taus: list of float. Lista de retardos respecto al micrófono de referencia.
+        - d: float. Distancia entre micrófonos.
+        - c: float. Velocidad del sonido (por defecto 343 m/s).
+        - fs: int. Frecuencia de muestreo (por defecto 44100 Hz).
+    
+    Output:
+        - angles: list of float. Ángulos estimados en grados.
+    """    
+    angles = []
+    for i, tau in enumerate(taus):
+        if i == 0:
+            angles.append(0.0)  # Micrófono de referencia
+        else:
+            d_total = d * i
+            angle = get_direction(d_total, tau, c=c, fs=fs)
+            angles.append(angle)
+    return angles
+
 
 def conv(in_signal, ir):
     """Performs convolution"""
