@@ -35,6 +35,13 @@ for delay in sample_delays:
     señal_retardada = np.roll(pulse, delay)  # Desplaza la señal 'pulse' en el tiempo simulando el retardo
     mic_signals.append(señal_retardada)      # Guarda la señal simulada en la lista
 
+
+
+# Agrego ruido a las señales
+mic_signals_rir = af.apply_reverb_synth(mic_signals, fs=fs, phi = -60, duration=duration)
+
+
+
 # Calculo los TDOA respecto al primer micrófono // Se puede probar con CC o GCC (get_tau / get_taus_gcc_phat)
 tau_list = af.get_taus_gcc_phat_n_mic(mic_signals, fs) 
 

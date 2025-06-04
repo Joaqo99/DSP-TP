@@ -395,3 +395,90 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase"):
     return temp_signal
 
 
+def rir(tau=0.015, fs=44100, phi=-80, duration=0.01):
+    """
+    Generates a synthetic impulse response
+
+    Parameters
+    ----------
+    fs : int, optional
+        Sampling frequency. The default is 44100.
+    tau : float, optional
+        The tau time parameter that controls the duration of the exponential envelope. The default is 0.15.
+    phi : float, optional
+        The noise floor level in decibels. The default is -80.
+
+    Returns
+    -------
+    rir_synth : ndarray
+        Array that contains the synthesized impulse response.
+    fs : int
+        Sampling frequency in Hz.
+    t : ndarray
+        Contains a sequence of time values that corresponds to the impulse response.
+        
+    Raises
+    ------
+    ValueError
+        If tau or phi have invalid values.
+        Noise floor must be a number
+
+    """
+    if not isinstance(tau, (int, float)) or tau <= 0:
+        raise ValueError("Tau debe ser un numero positivo.")
+        
+    if not isinstance(phi, (int, float)):
+        raise ValueError("El piso de ruido (phi) debe ser un número.")
+    
+    if phi > 0:
+        raise ValueError("Phi debe ser un número negativo.")
+        
+    A = 1 
+    fs = 44100
+    #Duracion del ruido
+    t = np.linspace(0, duration, int(fs * duration))       
+    #Genero ruido
+    noise_signal = np.random.normal(0,1,t.size)
+    #Genero un piso de ruido, con una atenuacion dada por phi
+    noise_floor = noise_signal  * (10**((phi)/20))
+    #Genero la envolvente exponencial
+    exp = A*np.exp(-t/tau)
+    #Modulo la señal con la exponencial y el ruido. Sumo el piso de ruido. Tengo en cuenta escalon unitario en t0=0
+    rir_synth = exp * noise_signal + noise_floor
+    #Normalizo la señal
+    rir_synth = rir_synth / np.max(np.abs(rir_synth))
+    
+    return rir_synth, fs, t
+
+def apply_reverb_synth(mic_signals, fs=44100, tau=0.015, phi=-60, duration=0.01):
+    """
+    Aplica reverberación a una lista de señales de micrófonos.
+
+    Parámetros
+    ----------
+    mic_signals : list of ndarray
+        Lista de señales por micrófono.
+    fs : int
+        Frecuencia de muestreo.
+    tau : float
+        Constante de decaimiento de la envolvente exponencial (más alto = más larga la cola de reverberación).
+    phi : float
+        Nivel del piso de ruido en dB (debe ser negativo).
+    duration : float
+        Duración total de cada señal en segundos.
+
+    Retorna
+    -------
+    mic_signals_rir : list of ndarray
+        Lista de señales con reverberación agregada.
+    """
+    mic_signals_rir = []
+    rir_sim = rir(tau=tau, fs=fs, phi=phi, duration=duration)  # generar solo 1 vez
+
+    for sig in mic_signals:
+        sig = np.asarray(sig).flatten()
+        señal_con_ruido = np.convolve(sig, rir_sim, mode="same")
+        mic_signals_rir.append(señal_con_ruido)
+
+    return mic_signals_rir
+
