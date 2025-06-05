@@ -45,7 +45,7 @@ mic_signals_rir = af.apply_reverb_synth(mic_signals, fs=fs, phi = -80, duration=
 
 # Calculo los TDOA respecto al primer micrófono // Se puede probar con CC o GCC (get_tau / get_taus_gcc_phat)
 # Aca probar entre mic_signals y mic_signals_rir para ver diferencias
-tau_list = af.get_taus_n_mic(mic_signals, fs) 
+tau_list = af.get_taus_n_mic(mic_signals_rir, fs) 
 
 # Calculo los diferentes angulos respecto a los tau anteriores
 est_theta_list = af.get_direction_n_signals(d,tau_list, c, fs)
@@ -85,8 +85,9 @@ rir_synth = af.rir(tau=7.23e-3, fs=fs, duration=duration)
 
 import matplotlib.pyplot as plt
 
-plt.plot(t, mic_signals[0], label="Señal limpia")
-plt.plot(t, mic_signals_rir[0], label="Señal con reverberación", alpha=0.7)
+
+plt.plot(t, mic_signals[2], label="Señal limpia")
+plt.plot(t, mic_signals_rir[2], label="Señal con reverberación", alpha=0.7)
 plt.plot(t, rir_synth, label="IR")
 plt.legend()
 plt.grid(True)

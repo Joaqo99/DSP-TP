@@ -476,13 +476,13 @@ def apply_reverb_synth(mic_signals, fs=44100, tau=0.15, phi=-80, duration=0.1):
     mic_signals_rir = []
     
     for sig in mic_signals:
-        sig = np.asarray(sig).flatten()     # Pasa a array y lo deja en 1 Dimension
+        #sig = np.asarray(sig).flatten()     # Pasa a array y lo deja en 1 Dimension
         rir_synth = rir(tau=tau, fs=fs, phi=phi, duration=duration)  # Calculo el RIR sintetico
         # Convolución
-        sig_full = np.convolve(sig, rir_synth, mode="full")
-        # Recorte alineado
-        start = (int(fs*duration))//2
-        signal_rir = sig_full[start:start+(int(fs*duration))]
+        sig_full = signal.fftconvolve(sig, rir_synth, mode="full")
+
+        signal_rir = sig_full[:(int(len(sig_full)/2) + 1)]
         mic_signals_rir.append(signal_rir)
+        
       
     return mic_signals_rir
