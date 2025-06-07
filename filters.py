@@ -25,7 +25,7 @@ def scot(x1_spectrum, x2_spectrum):
     psi = 1/np.sqrt(gx1x1*gx2x2)
     return psi
 
-def path(phi):
+def phat(phi):
     """
     Performs PATH weighting.
     Input:

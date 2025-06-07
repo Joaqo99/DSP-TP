@@ -4,11 +4,63 @@ import numpy as np
 from scipy import signal
 import numpy as np
 import colorednoise as cn
+import filters
+
+def cross_corr(x1, x2, fs=44100, mode="Classic"):
+    '''
+    Computes correlation between signals. 
+    The correlation method varies with mode parameter if clasic cross correlation or generalized version with wightings.
+
+    Input:
+        - x1: array type object. Microphone 1 signal.
+        - x2: array type object. Microphone 2 signal.
+        - fs: int type object. Sample frequency.
+        - mode: Str type object. Possible options:
+            - "Classic". By default. Performs Classic Cross Correlation.
+            - "Roth". By default. Performs Generalized Cross Correlation with Roth wighting.
+            - "Scot". By default. Performs Generalized Cross Correlation with Scot wighting.
+            - "PHAT". By default. Performs Generalized Cross Correlation with PHAT wighting.
+    Output:
+        - corr: Array type object. Correlation output vector.
+    '''
+
+    #check lenght and executes zero pad if needed
+    if len(x1) > len(x2):
+        zero_pad = np.zeros(len(x1)-len(x2))
+        x2 = np.concatenate((x2, zero_pad))
+    elif len(x2) > len(x1):
+        zero_pad = np.zeros(len(x2)-len(x1))
+        x1 = np.concatenate((x1, zero_pad))
+
+    #get fft
+    freqs, x1_fft = get_fft(x1, fs, normalize=False, output="Complex")
+    freqs, x2_fft = get_fft(x2, fs, normalize=False, output="Complex")
+
+    corr = x1_fft*np.conjugate(x2_fft)
+
+    #weightings
+    if isinstance(mode, str):
+        if mode == "Classic":
+            return corr
+        elif mode == "Roth":
+            psi = filters.roth(x1_fft)
+            corr = psi*corr
+            return corr
+        elif mode == "Scot":
+            psi = filters.scot(x1_fft, x2_fft)
+            corr = psi*corr
+            return corr
+        elif mode == "PHAT":
+            psi = filters.phat(corr)
+            corr = psi*corr
+            return corr
+        else:
+            raise ValueError('mode parameter must be either "Classic", "Roth", "Scot" or "PHAT".')
+    else:
+        raise ValueError('mode parameter must be a String object and either "Classic", "Roth", "Scot" or "PHAT".')
 
 
-
-
-def get_tau(mic_1, mic_2, fs=44100):
+def get_tau(mic_1, mic_2, fs=44100, mode="Classic"):
     """
     Gets the arrival time diference between 2 microphones
     Input:
@@ -18,7 +70,7 @@ def get_tau(mic_1, mic_2, fs=44100):
     Output:
         t: float type object. Arrival time diference
     """
-    corr = signal.correlate(mic_2, mic_1, mode='full')
+    corr = cross_corr(mic_2, mic_1, mode=mode)
     n_corr = np.arange(-len(mic_2) +1, len(mic_1))
     tau = (n_corr[np.argmax(corr)]/fs)
     #corr = signal.correlate(mic_1, mic_2, mode='full')
@@ -27,7 +79,7 @@ def get_tau(mic_1, mic_2, fs=44100):
     #tau = lag / fs                  # Retardo en segundos
     return tau
 
-def get_taus_n_mic(mic_signals, fs=44100):
+def get_taus_n_mic(mic_signals, fs=44100, mode="Classic"):
     """
     Calcula el tiempo de arribo relativo (TDOA) entre el primer micrófono y los demás.
 
@@ -42,7 +94,7 @@ def get_taus_n_mic(mic_signals, fs=44100):
     taus = [0.0]  # El micrófono de referencia tiene retardo 0
 
     for i in range(1, len(mic_signals)):
-        tau = get_tau(reference, mic_signals[i], fs)
+        tau = get_tau(reference, mic_signals[i], fs=fs, mode=mode)
         taus.append(tau)
     
     return taus
