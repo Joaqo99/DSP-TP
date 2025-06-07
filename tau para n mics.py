@@ -2,7 +2,7 @@ import numpy as np
 import plot
 import audio_functions as af
 from scipy.signal import correlate
-
+from scipy import signal
 
 #-----------------------------------------------------------------------
 c = 343    
@@ -11,7 +11,7 @@ duration = 0.1      # duracion de la señal
 
 t = np.linspace(0, duration, int(fs * duration))
 
-n_mics = 4
+n_mics = 7
 d = 0.1  # distancia entre micrófonos (en línea recta)
 
 # Genero señales con retardos simulados para un ángulo de llegada dado
@@ -39,7 +39,8 @@ for delay in sample_delays:
 
 
 # Agrego ruido a las señales
-mic_signals_rir = af.apply_reverb_synth(mic_signals, fs=fs, phi = -80, duration=duration, tau=7.23e-3)
+mic_signals_rir = af.apply_reverb_synth(mic_signals, fs=fs, duration=duration, tau=7.23e-3, rir_A=0.18, p_noise = 0.02)
+
 
 # Cálculos con las señales obtenidos-------------------------------------
 
@@ -85,11 +86,10 @@ rir_synth = af.rir(tau=7.23e-3, fs=fs, duration=duration)
 
 import matplotlib.pyplot as plt
 
-
-plt.plot(t, mic_signals[2], label="Señal limpia")
-plt.plot(t, mic_signals_rir[2], label="Señal con reverberación", alpha=0.7)
-plt.plot(t, rir_synth, label="IR")
+#plt.plot(t, mic_signals[0], label="Señal limpia")
+plt.plot(t, mic_signals_rir[0], label="Señal con reverberación", alpha=0.7)
+#plt.plot(t, leaking_noise, label="ruido")
 plt.legend()
 plt.grid(True)
-plt.title("Comparación señal limpia vs. reverberada")
+plt.title("Señal resultante")
 plt.show()
