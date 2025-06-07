@@ -3,6 +3,10 @@ from IPython.display import Audio
 import numpy as np
 from scipy import signal
 import numpy as np
+import colorednoise as cn
+
+
+
 
 def get_tau(mic_1, mic_2, fs=44100):
     """
@@ -395,7 +399,7 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase"):
     return temp_signal
 
 
-def rir(tau=0.15, fs=44100, phi=-80, duration=0.1):
+def rir(tau=0.15, rir_A=0.05, fs=44100, phi=-120, duration=0.1):
     """
     Generates a synthetic impulse response
 
@@ -438,7 +442,7 @@ def rir(tau=0.15, fs=44100, phi=-80, duration=0.1):
     #Duracion del ruido
     t = np.linspace(0, duration, int(fs * duration))       
     #Genero ruido
-    noise_signal = np.random.normal(0,1,t.size)
+    noise_signal = np.random.normal(0,rir_A,t.size)
     #Genero un piso de ruido, con una atenuacion dada por phi
     noise_floor = noise_signal  * (10**((phi)/20))
     #Genero la envolvente exponencial
@@ -446,12 +450,12 @@ def rir(tau=0.15, fs=44100, phi=-80, duration=0.1):
     #Modulo la señal con la exponencial y el ruido. Sumo el piso de ruido. Tengo en cuenta escalon unitario en t0=0
     rir_synth = exp * noise_signal + noise_floor
     #Normalizo la señal
-    rir_synth = rir_synth / np.max(np.abs(rir_synth))
+    #rir_synth = rir_synth / np.max(np.abs(rir_synth))
     
     return rir_synth
 
 
-def apply_reverb_synth(mic_signals, fs=44100, tau=0.15, phi=-80, duration=0.1):
+def apply_reverb_synth(mic_signals, fs=44100, tau=0.15, rir_A = 0.05, p_noise = 0.1, phi=-120, duration=0.1):
     """
     Aplica reverberación a una lista de señales de micrófonos.
 
@@ -477,12 +481,21 @@ def apply_reverb_synth(mic_signals, fs=44100, tau=0.15, phi=-80, duration=0.1):
     
     for sig in mic_signals:
         #sig = np.asarray(sig).flatten()     # Pasa a array y lo deja en 1 Dimension
-        rir_synth = rir(tau=tau, fs=fs, phi=phi, duration=duration)  # Calculo el RIR sintetico
+
+        # Ruido
+        beta = 1  # 1 = ruido rosa, 0 = blanco, 2 = browniano
+        # Generar ruido rosa
+        attenuation = p_noise
+        pink_noise = cn.powerlaw_psd_gaussian(beta, int(fs*duration)) * attenuation
+        
+        rir_synth = rir(tau=tau, fs=fs, phi=phi, duration=duration, rir_A=rir_A)  # Calculo el RIR sintetico
         # Convolución
         sig_full = signal.fftconvolve(sig, rir_synth, mode="full")
-
         signal_rir = sig_full[:(int(len(sig_full)/2) + 1)]
+        #Sumo el pulso
+        signal_rir = sig + signal_rir + pink_noise
+        #Normalizo
+        signal_rir = signal_rir / np.max(np.abs(signal_rir))
         mic_signals_rir.append(signal_rir)
-        
       
     return mic_signals_rir
