@@ -2,6 +2,7 @@ import soundfile as sf
 from IPython.display import Audio
 import numpy as np
 from scipy import signal
+from scipy import fft as scfft
 import numpy as np
 import colorednoise as cn
 import filters
@@ -33,10 +34,11 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
         x1 = np.concatenate((x1, zero_pad))
 
     #get fft
-    freqs, x1_fft = get_fft(x1, fs, normalize=False, output="Complex")
-    freqs, x2_fft = get_fft(x2, fs, normalize=False, output="Complex")
+    freqs, x1_fft = get_fft(x1, fs, normalize=False, output="complex")
+    freqs, x2_fft = get_fft(x2, fs, normalize=False, output="complex")
 
-    corr = x1_fft*np.conjugate(x2_fft)
+    cross_spect = x1_fft*np.conjugate(x2_fft)
+    corr = get_ifft(cross_spect, input="complex")
 
     #weightings
     if isinstance(mode, str):
@@ -411,7 +413,7 @@ def get_fft(in_signal, fs, normalize=True, output="mag-phase"):
         - fft: array type object. Real Frequencies raw fft vector.
     """
 
-    rfft = np.fft.rfft(in_signal)
+    rfft = scfft.rfft(in_signal)
     in_freqs = np.linspace(0, fs//2, len(rfft))
 
     #import pdb;pdb.set_trace()
@@ -447,7 +449,7 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase"):
     else:
         raise ValueError('Input format must be "mag_phase" or "complex"')
     
-    temp_signal = np.fft.irfft(in_rfft)
+    temp_signal = scfft.irfft(in_rfft)
     return temp_signal
 
 
