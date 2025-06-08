@@ -46,14 +46,16 @@ mic_signals_rir = af.apply_reverb_synth(mic_signals, fs=fs, duration=duration, t
 
 # Calculo los TDOA respecto al primer micrófono // Se puede probar con CC o GCC (get_tau / get_taus_gcc_phat)
 # Aca probar entre mic_signals y mic_signals_rir para ver diferencias
-tau_list = af.get_taus_n_mic(mic_signals_rir, fs) 
+tau_list = af.get_taus_n_mic(mic_signals, fs, mode= "PHAT") 
 
 # Calculo los diferentes angulos respecto a los tau anteriores
 est_theta_list = af.get_direction_n_signals(d,tau_list, c, fs)
 
+
 # Calculo el angulo promedio
 
 theta_prom = (np.sum(est_theta_list[1:])) / (len(est_theta_list ) - 1)     # Promedio (no considero el inicial de referencia)
+
 
 # Muestro los resultados------------------------------------------------
 for i, (tau, est_theta) in enumerate(zip(tau_list, est_theta_list)):            # Mic 1 con valores nulos porque no hay TDOA para comparar 
