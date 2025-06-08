@@ -26,40 +26,39 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
     '''
 
     #check lenght and executes zero pad if needed
-    if len(x1) > len(x2):
-        zero_pad = np.zeros(len(x1)-len(x2))
-        x2 = np.concatenate((x2, zero_pad))
-    elif len(x2) > len(x1):
-        zero_pad = np.zeros(len(x2)-len(x1))
-        x1 = np.concatenate((x1, zero_pad))
+    x1 = np.asarray(x1)
+    x2 = np.asarray(x2)
+    
+    N = max(len(x1), len(x2))
+    x1 = np.pad(x1, (0, N - len(x1)))
+    x2 = np.pad(x2, (0, N - len(x2)))
+    nfft = 2 * N
 
-    #get fft
-    freqs, x1_fft = get_fft(x1, fs, normalize=False, output="complex")
-    freqs, x2_fft = get_fft(x2, fs, normalize=False, output="complex")
-
-    cross_spect = x1_fft*np.conjugate(x2_fft)
-    corr = get_ifft(cross_spect, input="complex")
+    freqs, x1_fft = get_fft(x1, fs, normalize=False, nfft=nfft, output="complex")
+    freqs, x2_fft = get_fft(x2, fs, normalize=False, nfft=nfft, output="complex")
+    cross_spect = x1_fft * np.conj(x2_fft)
+      
 
     #weightings
     if isinstance(mode, str):
         if mode == "Classic":
-            return corr
+            G = cross_spect
         elif mode == "Roth":
-            psi = filters.roth(x1_fft)
-            corr = psi*corr
-            return corr
+            psi = filters.roth(x2_fft)
+            G = cross_spect * psi
         elif mode == "Scot":
             psi = filters.scot(x1_fft, x2_fft)
-            corr = psi*corr
-            return corr
+            G = cross_spect * psi
         elif mode == "PHAT":
-            psi = filters.phat(corr)
-            corr = psi*corr
-            return corr
+            psi = filters.phat(cross_spect)
+            G = cross_spect * psi
         else:
             raise ValueError('mode parameter must be either "Classic", "Roth", "Scot" or "PHAT".')
+        corr = get_ifft(G, input = "complex", nfft = nfft)
+        corr = np.real(np.fft.fftshift(corr))
     else:
         raise ValueError('mode parameter must be a String object and either "Classic", "Roth", "Scot" or "PHAT".')
+    return corr
 
 
 def get_tau(mic_1, mic_2, fs=44100, mode="Classic"):
@@ -393,7 +392,7 @@ def generate_time_vector(dur, fs):
     t = np.linspace(0, dur, int(dur*fs))
     return t
 
-def get_fft(in_signal, fs, normalize=True, output="mag-phase"):
+def get_fft(in_signal, fs, normalize=True, output="mag-phase", real_fft=True, nfft = None):
     """
     Performs a fast fourier transform over the input signal. As we're working with real signals, we perform the rfft.
     Input:
@@ -412,9 +411,12 @@ def get_fft(in_signal, fs, normalize=True, output="mag-phase"):
         - in_freqs: array type object. Real Frequencies domain vector.
         - fft: array type object. Real Frequencies raw fft vector.
     """
-
-    rfft = scfft.rfft(in_signal)
-    in_freqs = np.linspace(0, fs//2, len(rfft))
+    if real_fft:
+        rfft = scfft.rfft(in_signal, n = nfft)
+        in_freqs = np.linspace(0, fs//2, len(rfft))
+    else:
+        rfft = np.fft.fft(in_signal, n = nfft)
+        in_freqs = np.fft.fftfreq(len(in_signal), d=1/fs)
 
     #import pdb;pdb.set_trace()
 
@@ -428,7 +430,7 @@ def get_fft(in_signal, fs, normalize=True, output="mag-phase"):
     else:
         raise ValueError('No valid output format - Must be "mag-phase" or "complex"')
 
-def get_ifft(in_rfft, in_phases=False, input="mag-phase"):
+def get_ifft(in_rfft, in_phases=False, input="mag-phase", nfft = None):
     """
     Performs an inverse fast Fourier transform of a real signal
     Input:
@@ -449,7 +451,7 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase"):
     else:
         raise ValueError('Input format must be "mag_phase" or "complex"')
     
-    temp_signal = scfft.irfft(in_rfft)
+    temp_signal = np.fft.ifft(in_rfft, n = nfft) # Cambio de scfft.irfft a np.fft.ifft si input="complex"
     return temp_signal
 
 
