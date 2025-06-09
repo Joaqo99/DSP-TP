@@ -24,27 +24,30 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
     Output:
         - corr: Array type object. Correlation output vector.
     '''
+    
 
     #check lenght and executes zero pad if needed
     x1 = np.asarray(x1)
     x2 = np.asarray(x2)
     
-    N = max(len(x1), len(x2))
-    x1 = np.pad(x1, (0, N - len(x1)))
-    x2 = np.pad(x2, (0, N - len(x2)))
-    nfft = 2 * N
+    N = len(x1) + len(x2) - 1  # N = 5
 
-    freqs, x1_fft = get_fft(x1, fs, normalize=False, nfft=nfft, output="complex")
-    freqs, x2_fft = get_fft(x2, fs, normalize=False, nfft=nfft, output="complex")
-    cross_spect = x1_fft * np.conj(x2_fft)
-      
+    # Zero padding
+    x1_padded = np.pad(x1, (0, N - len(x1)))
+    x2_padded = np.pad(x2, (0, N - len(x2)))
+
+    #get fft
+    freqs, x1_fft = get_fft(x1_padded, fs, normalize=False, nfft=N, output="complex", real_fft=False)
+    freqs, x2_fft = get_fft(x2_padded, fs, normalize=False, nfft=N, output="complex", real_fft=False)
+
+    cross_spect = x1_fft*np.conjugate(x2_fft)
 
     #weightings
     if isinstance(mode, str):
         if mode == "Classic":
             G = cross_spect
         elif mode == "Roth":
-            psi = filters.roth(x2_fft)
+            psi = filters.roth(x1_fft)
             G = cross_spect * psi
         elif mode == "Scot":
             psi = filters.scot(x1_fft, x2_fft)
@@ -54,8 +57,8 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
             G = cross_spect * psi
         else:
             raise ValueError('mode parameter must be either "Classic", "Roth", "Scot" or "PHAT".')
-        corr = get_ifft(G, input = "complex", nfft = nfft)
-        corr = np.round(np.real(np.fft.fftshift(corr)))
+        corr = get_ifft(G, input = "complex", nfft = N)
+        corr = np.real(np.fft.fftshift(corr))
         corr = np.roll(corr, -1)
     else:
         raise ValueError('mode parameter must be a String object and either "Classic", "Roth", "Scot" or "PHAT".')
@@ -388,7 +391,7 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase", nfft = None):
     else:
         raise ValueError('Input format must be "mag_phase" or "complex"')
     
-    temp_signal = scfft.irfft(in_rfft, n = nfft) # Cambio de scfft.irfft a np.fft.ifft si input="complex"
+    temp_signal = scfft.ifft(in_rfft, n = nfft)
     return temp_signal
 
 
