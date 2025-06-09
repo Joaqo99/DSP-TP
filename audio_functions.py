@@ -55,7 +55,8 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
         else:
             raise ValueError('mode parameter must be either "Classic", "Roth", "Scot" or "PHAT".')
         corr = get_ifft(G, input = "complex", nfft = nfft)
-        corr = np.real(np.fft.fftshift(corr))
+        corr = np.round(np.real(np.fft.fftshift(corr)))
+        corr = np.roll(corr, -1)
     else:
         raise ValueError('mode parameter must be a String object and either "Classic", "Roth", "Scot" or "PHAT".')
     return corr
@@ -74,10 +75,6 @@ def get_tau(mic_1, mic_2, fs=44100, mode="Classic"):
     corr = cross_corr(mic_2, mic_1, mode=mode)
     n_corr = np.arange(-len(mic_2) +1, len(mic_1))
     tau = (n_corr[np.argmax(corr)]/fs)
-    #corr = signal.correlate(mic_1, mic_2, mode='full')
-    #lags = signal.correlation_lags(len(mic_1), len(mic_2), mode='full')
-    #lag = lags[np.argmax(corr)]     # Retardo en muestras
-    #tau = lag / fs                  # Retardo en segundos
     return tau
 
 def get_taus_n_mic(mic_signals, fs=44100, mode="Classic"):
@@ -100,66 +97,6 @@ def get_taus_n_mic(mic_signals, fs=44100, mode="Classic"):
     
     return taus
 
-
-def get_tau_gcc_phat(sig, refsig, fs=44100, interp=16):
-    """
-    Estima el retardo temporal entre dos señales (sig y refsig)
-    usando el método de Correlación Cruzada Generalizada con ponderación PHAT.
-    
-    Parámetros:
-        sig:     Señal 1 (por ejemplo, del micrófono 1)
-        refsig:  Señal 2 (por ejemplo, del micrófono 2)
-        fs:      Frecuencia de muestreo (Hz)
-        interp:  Factor de interpolación para mayor resolución temporal
-    
-    Devuelve:
-        tau:     Tiempo estimado de retardo (en segundos)
-    """
-    # Longitud total para la FFT (convolución completa)
-    n = sig.shape[0] + refsig.shape[0]
-    # FFT de ambas señales
-    SIG = np.fft.rfft(sig, n=n)
-    REFSIG = np.fft.rfft(refsig, n=n)
-    # Cálculo del espectro cruzado
-    cross_spectrum = SIG * np.conj(REFSIG)
-    # Aplicación del filtro PHAT: normalización por magnitud
-    cross_spectrum_magnitude = np.abs(cross_spectrum)
-    cross_spectrum_phat = cross_spectrum / (cross_spectrum_magnitude + np.finfo(float).eps)
-    # Transformada inversa para obtener la correlación cruzada
-    cc = np.fft.irfft(cross_spectrum_phat, n=(interp * n))
-    # Se define el máximo desplazamiento posible (número de muestras desplazadas)
-    max_shift = int(interp * n / 2)
-    # Reorganizamos los resultados para que el cero esté en el centro
-    cc_shifted = np.concatenate((cc[-max_shift:], cc[:max_shift + 1]))
-    # Localizamos el pico máximo (mayor correlación)
-    max_index = np.argmax(np.abs(cc_shifted))
-    # Calculamos el desplazamiento (en muestras)
-    shift = max_index - max_shift
-    # Convertimos el desplazamiento en tiempo (segundos)
-    tau = shift / float(interp * fs)
-
-    return tau
-
-def get_taus_gcc_phat_n_mic(mic_signals, fs=44100, interp=16):
-    """
-    Calcula el TDOA entre el primer micrófono y todos los demás usando GCC-PHAT.
-
-    Parámetros:
-        mic_signals: lista o array (n_mics x n_samples) con señales por micrófono.
-        fs: frecuencia de muestreo
-        interp: factor de interpolación para mayor resolución en la estimación
-
-    Devuelve:
-        taus: lista de retardos relativos en segundos (el primer mic tiene tau = 0)
-    """
-    reference = mic_signals[0]
-    taus = [0.0]  # El primer mic tiene tiempo de referencia
-
-    for i in range(1, len(mic_signals)):
-        tau = get_tau_gcc_phat(mic_signals[i], reference, fs=fs, interp=interp)
-        taus.append(tau)
-
-    return taus
 def get_direction(d, t, c=340, fs=44100):
     """
     Returns direction of arrival between 2 microphones
@@ -451,7 +388,7 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase", nfft = None):
     else:
         raise ValueError('Input format must be "mag_phase" or "complex"')
     
-    temp_signal = np.fft.ifft(in_rfft, n = nfft) # Cambio de scfft.irfft a np.fft.ifft si input="complex"
+    temp_signal = scfft.irfft(in_rfft, n = nfft) # Cambio de scfft.irfft a np.fft.ifft si input="complex"
     return temp_signal
 
 
@@ -523,6 +460,10 @@ def apply_reverb_synth(mic_signals, fs=44100, tau=0.15, rir_A = 0.05, p_noise = 
         Frecuencia de muestreo.
     tau : float
         Constante de decaimiento de la envolvente exponencial (más alto = más larga la cola de reverberación).
+    rir_A : float
+        Cantidad de ruido, amplitud, que se le agrega al IR.
+    p_noise : float
+        Amplitud del ruido rosa.    
     phi : float
         Nivel del piso de ruido en dB (debe ser negativo).
     duration : float
