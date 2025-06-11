@@ -356,118 +356,15 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase", nfft = None, real = Tr
         temp_signal = scfft.ifft(in_rfft, n = nfft)
     return temp_signal
 
-
-def rir(tau=0.15, rir_A=0.05, fs=44100, phi=-120, duration=0.1):
+def apply_noise(mic_signals, fs=44100, A_noise = 0.1, duration=0.1):
     """
-    Generates a synthetic impulse response
-
-    Parameters
-    ----------
-    fs : int, optional
-        Sampling frequency. The default is 44100.
-    tau : float, optional
-        The tau time parameter that controls the duration of the exponential envelope. The default is 0.15.
-    phi : float, optional
-        The noise floor level in decibels. The default is -80.
-
-    Returns
-    -------
-    rir_synth : ndarray
-        Array that contains the synthesized impulse response.
-    fs : int
-        Sampling frequency in Hz.
-    t : ndarray
-        Contains a sequence of time values that corresponds to the impulse response.
-        
-    Raises
-    ------
-    ValueError
-        If tau or phi have invalid values.
-        Noise floor must be a number
-
-    """
-    if not isinstance(tau, (int, float)) or tau <= 0:
-        raise ValueError("Tau debe ser un numero positivo.")
-        
-    if not isinstance(phi, (int, float)):
-        raise ValueError("El piso de ruido (phi) debe ser un número.")
-    
-    if phi > 0:
-        raise ValueError("Phi debe ser un número negativo.")
-        
-    A = 1
-    fs = 44100
-    #Duracion del ruido
-    t = np.linspace(0, duration, int(fs * duration))       
-    #Genero ruido
-    noise_signal = np.random.normal(0,rir_A,t.size)
-    #Genero un piso de ruido, con una atenuacion dada por phi
-    noise_floor = noise_signal  * (10**((phi)/20))
-    #Genero la envolvente exponencial
-    exp = A*np.exp(-t/tau)
-    #Modulo la señal con la exponencial y el ruido. Sumo el piso de ruido. Tengo en cuenta escalon unitario en t0=0
-    rir_synth = exp * noise_signal + noise_floor
-    #Normalizo la señal
-    #rir_synth = rir_synth / np.max(np.abs(rir_synth))
-    
-    return rir_synth
-
-
-
-def synth_impulse_response(fs, reverb_time, noise_florr_level, A=1.0, duration=0.1):
-    """
-    Generates a synthetic impulse response
-    Input:
-        - fs: int type object. Sample rate
-        - reverb_time: float type object. Reverb time.
-        - noise_florr_level: int type object. Noise floor presion level.
-        - A: float type object. Exponential amplitude. Optional, 1.0 by default.
-        - duration: float type object. Duration of signal in seconds.
-    Output:
-        - t: array type object. Time vector
-        - impulse_response: array type object. Impulse response vector
-    """
-
-    #error handling
-    if type(fs) != int:
-        raise ValueError("fs must be an integer")
-    if not isinstance(reverb_time, (int, float)):
-        raise ValueError("reverb_time must be either int or float")
-    if not isinstance(noise_florr_level, (int, float)):
-        raise ValueError("Noise floor must be either int or float")
-    if not isinstance(A, (int, float)):
-        raise ValueError("IR Amplitude must be either int or float")
-    #cómo genero n? --> n, t, lo q sea, es arbitrario. Tiene que ser mayor al tiempo de reverberación.
-
-    t = np.linspace(0, duration, int(fs * duration))
-
-    #generate noise
-    noise = np.random.normal(0, 1, len(t))
-
-    #envelop
-    tao = reverb_time/6.90
-    envolvente = np.exp(-t/tao)
-
-    #impulse response generator
-    impulse_response = A*envolvente*noise + (10**(noise_florr_level/20))*noise
-    #impulse_response = impulse_response/ np.max(np.abs(impulse_response))   
-
-    return t, impulse_response
-
-
-def apply_reverb_synth(mic_signals, fs=44100, reverb_time=1, p_noise = 0.1, noise_floor_level=-120.0, duration=0.1, A=1.0):
-    """
-    Aplica reverberación a una lista de señales de micrófonos.
-    Applies reverberation to a list of microphone signals.
+    Applies pink noise to a list of microphone signals.
 
     Input:
         - mic_signals: List type object. List of microphone signals.
         - fs: int type object. Sample frequency.
-        - reverb_time: float_type obejt. 
-        - p_noise: float type object. Pink noise amplitude.
-        - noise_floor_level: float type object.
+        - A_noise: float type object. Pink noise amplitude.
         - duration: float type object. Total duration of each signal in seconds.
-        - A: float type object. IR Amplitude.
 
     Output:
         - mic_signals_rir : array type object. List of signals with added reverb.
@@ -475,21 +372,13 @@ def apply_reverb_synth(mic_signals, fs=44100, reverb_time=1, p_noise = 0.1, nois
     mic_signals_rir = []
     
     for sig in mic_signals:
-        #sig = np.asarray(sig).flatten()     # Pasa a array y lo deja en 1 Dimension
-
         # Ruido
         beta = 1  # 1 = ruido rosa, 0 = blanco, 2 = browniano
         # Generar ruido rosa
-        attenuation = p_noise
-        pink_noise = cn.powerlaw_psd_gaussian(beta, int(fs*duration)) * attenuation
-        
-        #rir_synth = rir(tau=tau, fs=fs, phi=phi, duration=duration, rir_A=rir_A)  # Calculo el RIR sintetico
-        _, rir_synth = synth_impulse_response(fs, reverb_time, noise_floor_level, A=A, duration=duration)  # Calculo el RIR sintetico
-        # Convolución
-        sig_full = signal.fftconvolve(sig, rir_synth, mode="full")
-        signal_rir = sig_full[:(int(len(sig_full)/2) + 1)]
+        A = A_noise
+        pink_noise = A * cn.powerlaw_psd_gaussian(beta, int(fs*duration))
         #Sumo el pulso
-        signal_rir = sig + signal_rir + pink_noise
+        signal_rir = sig + pink_noise
         #Normalizo
         signal_rir = signal_rir / np.max(np.abs(signal_rir))
         mic_signals_rir.append(signal_rir)
