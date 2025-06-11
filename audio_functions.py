@@ -328,7 +328,7 @@ def get_fft(in_signal, fs, normalize=True, output="mag-phase", real_fft=True, nf
     else:
         raise ValueError('No valid output format - Must be "mag-phase" or "complex"')
 
-def get_ifft(in_rfft, in_phases=False, input="mag-phase", nfft = None):
+def get_ifft(in_rfft, in_phases=False, input="mag-phase", nfft = None, real = True):
     """
     Performs an inverse fast Fourier transform of a real signal
     Input:
@@ -350,7 +350,10 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase", nfft = None):
     else:
         raise ValueError('Input format must be "mag_phase" or "complex"')
     
-    temp_signal = scfft.ifft(in_rfft, n = nfft)
+    if real:
+        temp_signal = scfft.irfft(in_rfft, n = nfft)
+    else:
+        temp_signal = scfft.ifft(in_rfft, n = nfft)
     return temp_signal
 
 
@@ -411,7 +414,7 @@ def rir(tau=0.15, rir_A=0.05, fs=44100, phi=-120, duration=0.1):
 
 
 
-def synth_impulse_response(fs, reverb_time, noise_florr_level, A=1.0, signal_length=False):
+def synth_impulse_response(fs, reverb_time, noise_florr_level, A=1.0, duration=0.1):
     """
     Generates a synthetic impulse response
     Input:
@@ -419,7 +422,7 @@ def synth_impulse_response(fs, reverb_time, noise_florr_level, A=1.0, signal_len
         - reverb_time: float type object. Reverb time.
         - noise_florr_level: int type object. Noise floor presion level.
         - A: float type object. Exponential amplitude. Optional, 1.0 by default.
-        - signal_length: int type object.
+        - duration: float type object. Duration of signal in seconds.
     Output:
         - t: array type object. Time vector
         - impulse_response: array type object. Impulse response vector
@@ -428,24 +431,18 @@ def synth_impulse_response(fs, reverb_time, noise_florr_level, A=1.0, signal_len
     #error handling
     if type(fs) != int:
         raise ValueError("fs must be an integer")
-    if type(reverb_time) != float:
-        raise ValueError("reverb_time must be a float")
+    if not isinstance(reverb_time, (int, float)):
+        raise ValueError("reverb_time must be either int or float")
     if not isinstance(noise_florr_level, (int, float)):
         raise ValueError("Noise floor must be either int or float")
     if not isinstance(A, (int, float)):
         raise ValueError("IR Amplitude must be either int or float")
     #cómo genero n? --> n, t, lo q sea, es arbitrario. Tiene que ser mayor al tiempo de reverberación.
 
-    if signal_length:
-        pass
-    else:
-        dur = reverb_time + 0.25
-        signal_length = int(dur*fs)
-
-    t = np.linspace(0, dur, signal_length, endpoint=True)
+    t = np.linspace(0, duration, int(fs * duration))
 
     #generate noise
-    noise = np.random.normal(0, 1, signal_length)
+    noise = np.random.normal(0, 1, len(t))
 
     #envelop
     tao = reverb_time/6.90
@@ -487,7 +484,7 @@ def apply_reverb_synth(mic_signals, fs=44100, reverb_time=1, p_noise = 0.1, nois
         pink_noise = cn.powerlaw_psd_gaussian(beta, int(fs*duration)) * attenuation
         
         #rir_synth = rir(tau=tau, fs=fs, phi=phi, duration=duration, rir_A=rir_A)  # Calculo el RIR sintetico
-        rir_synth = synth_impulse_response(fs, reverb_time, noise_floor_level, A=A)  # Calculo el RIR sintetico
+        _, rir_synth = synth_impulse_response(fs, reverb_time, noise_floor_level, A=A, duration=duration)  # Calculo el RIR sintetico
         # Convolución
         sig_full = signal.fftconvolve(sig, rir_synth, mode="full")
         signal_rir = sig_full[:(int(len(sig_full)/2) + 1)]
