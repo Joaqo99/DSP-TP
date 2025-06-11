@@ -3,40 +3,55 @@ from matplotlib import pyplot as plt
 from scipy import signal
 from scipy import fft
 import audio_functions as auf
+import plot
 
+def get_audio_time_array_1(audio, fs):
+    """
+    Returns audio time array
+    Input:
+        - audio: array type object.
+        - fs: Int type object. Sample rate.
+    Output:
+        - duration: int type object. Audio duration
+        - time_array: array type object.
+    """
+    #error handling
+    if  type(audio) != np.ndarray:
+        raise ValueError("audio must be a ndarray")
+    if type(fs) != int:
+        raise ValueError("fs must be int")
+    
+    #features
+    duration = len(audio) / fs
+    time_array = np.linspace(0, duration, len(audio))
 
-x1 = np.array([1, 0, 1])
-x2 = np.array([1, 0, 1, 0, 0])
+    return duration, time_array
 
+def get_audio_time_array_2(audio, fs):
+    """
+    Returns audio time array
+    Input:
+        - audio: array type object.
+        - fs: Int type object. Sample rate.
+    Output:
+        - duration: int type object. Audio duration
+        - time_array: array type object.
+        
+    Raices:
+        - TypeError: if audio is not an array 
+        - TypeError: if fs is not an int
+    """
 
-N = len(x1) + len(x2) - 1
+    duration = audio.size // fs
+    time_array = np.linspace(0, duration, audio.size)
 
-conv = np.convolve(x1, x2)
-corr = signal.correlate(x1, x2, mode="full")
-lags = signal.correlation_lags(len(x1), len(x2), mode="full")
-lag = lags[np.argmax(corr)]
+    return duration, time_array
 
-print("No padding")
-print(f"Convolution (numpy): {conv}")
+fs = 48000
 
-print("Padding")
-## Zero padding
-x1_padded = np.pad(x1, (0, N - len(x1)))
-x2_padded = np.pad(x2, (0, N - len(x2)))
-print(f"X1 Padded: {x1_padded}")
-print(f"X2 Padded: {x2_padded}")
-x1_fft = fft.fft(x1_padded)
-x2_fft = fft.fft(x2_padded)
+audio, _ = auf.load_audio("audios_anecoicos/p336_001.wav")
 
-conv_2 = fft.ifft(x1_fft*x2_fft)
-print(f"Convolution (fft): {np.real(conv_2).astype(int)}")
+_, n1 = get_audio_time_array_1(audio, fs)
+_, n2 = get_audio_time_array_2(audio, fs)
 
-cross_pow_spectrum = np.conjugate(x1_fft)*x2_fft
-corr_2 = fft.ifft(cross_pow_spectrum)
-corr_2 = np.real(corr_2).astype(int)
-corr_3 = np.roll(corr_2, -1)
-
-print(f"Correlation 1: {corr}")
-print(f"Correlation 2: {corr_2}")
-print(f"Correlation 3: {corr_3}")
-print(f"Lag (scipy): {lag}")
+plot.unit_plot({"array":n1, "label":"n1"}, {"array":n2, "label":"n2"})
