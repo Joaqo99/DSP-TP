@@ -1,11 +1,12 @@
 import soundfile as sf
-from IPython.display import Audio
+import IPython
 import numpy as np
 from scipy import signal
 from scipy import fft as scfft
 import numpy as np
 import colorednoise as cn
 import filters
+
 
 def cross_corr(x1, x2, fs=44100, mode="Classic"):
     '''
@@ -225,8 +226,7 @@ def play_audio(audio, fs):
     #error handling
     if type(fs) != int:
         raise ValueError("fs must be int")
-
-    return Audio(audio, rate=fs)
+    return IPython.display.display(IPython.display.Audio(audio, rate = fs))
 
 def to_mono(audio):
     """
