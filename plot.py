@@ -160,18 +160,20 @@ def plot_ftf(filters, fs, f_lim=False, figsize=False, show=True, title=False, xt
     else:
         plt.ioff()
 
-def multiplot(*plots, figsize=(8, 5)):
+def multiplot(*plots, figsize=(8, 5), ncols=2):
     """
-    Receive single plots as lambda functions and subplots them all in rows of 2 columns.
+    Receive single plots as lambda functions and subplots them all in a grid with the specified number of columns.
     Inputs:
-        - plots: lambda function type object. Every plot must have Show and Figsize arguments set to False.
-        - figsize: structured type object.
+        - plots: lambda function type objects. Each plot must have Show and Figsize arguments set to False.
+        - figsize: tuple specifying figure size.
+        - ncols: int, number of columns in the subplot grid.
     """
+    import matplotlib.pyplot as plt
     num_plots = len(plots)
-    rows = (num_plots + 1)//2
+    rows = (num_plots + ncols - 1) // ncols  # Ceiling division
     plt.figure(figsize=figsize)
     for i, figure in enumerate(plots):
-        plt.subplot(rows,2, i + 1)
+        plt.subplot(rows, ncols, i + 1)
         figure()
     plt.tight_layout()
     plt.show()

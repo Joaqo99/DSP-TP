@@ -26,7 +26,6 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
     Output:
         - corr: Array type object. Correlation output vector.
     '''
-    
 
     def cs_ifft(x):
         """Performs ifft for weighted cross spectrum"""
@@ -34,6 +33,7 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
         corr = np.fft.fftshift(corr)
         corr = np.real(corr)
         corr = np.roll(corr, -1)
+        return corr
 
     #check lenght and executes zero pad if needed
     x1 = np.asarray(x1)
@@ -62,16 +62,16 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
         elif mode == "PHAT":
             psi = filters.phat(cross_spect)
         elif mode == "ECKART":
-            psi = filters.eckart(cross_spect)
+            psi = filters.eckart(x1_fft, x2_fft, cross_spect)
         elif mode == "HT":
-            psi = filters.ht(cross_spect)
+            psi = filters.ht(x1_fft, x2_fft, cross_spect)
         else:
             raise ValueError('mode parameter must be either "Classic", "Roth", "Scot" or "PHAT".')
         weighted_cs = psi*cross_spect
         corr = cs_ifft(weighted_cs)
+        return corr
     else:
         raise ValueError('mode parameter must be a String object and either "Classic", "Roth", "Scot" or "PHAT".')
-    return corr
 
 
 def get_tau(mic_1, mic_2, fs=44100, mode="Classic"):
