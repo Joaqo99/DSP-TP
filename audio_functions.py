@@ -450,7 +450,7 @@ def synth_impulse_response(fs, reverb_time, noise_florr_level, A=1.0, duration=0
 
     #impulse response generator
     impulse_response = A*envolvente*noise + (10**(noise_florr_level/20))*noise
-    impulse_response = impulse_response/ np.max(np.abs(impulse_response))
+    #impulse_response = impulse_response/ np.max(np.abs(impulse_response))   
 
     return t, impulse_response
 
