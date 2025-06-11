@@ -1,48 +1,58 @@
+
 import numpy as np
-import plot
-from scipy.signal import correlate
+from matplotlib import pyplot as plt
+from scipy import signal
+from scipy import fft
 import audio_functions as af
 
-c = 343              
-d = 0.1              # Distancia entre mics
-
-theta_deg = 60       
-theta = np.deg2rad(theta_deg)
-
-fs = 44100
-duration = 0.01      # 1 seg
-t = np.linspace(0, duration, int(fs * duration))
-
-# Simulación de señal (pulso)
-pulse = np.zeros_like(t)
-pulse[int(len(t)/2)] = 1.0  
-
-sample_delay = int((d * np.cos(theta)) / c * fs)
-
-# Señales en los micrófonos
-y1 = pulse
-y2 = np.roll(pulse, sample_delay)  # señal retardada
-
-# Cálculo del retardo
-tau = af.get_tau_gcc_phat(y2,y1)
-
-print(f"TDOA = {tau:.6f} s ({sample_delay} muestras)")
-
-est_theta = af.get_direction(d, tau, c=343)
+x1 = np.array([0, 0, 0, 1, 1, 0, 1])
+x2 = np.array([0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1])
 
 
-print(f"Estimado TDOA: {tau:.6f} s")
-print(f"Ángulo estimado: {est_theta:.2f}°")
+N = len(x1) + len(x2) - 1  # N = 5
 
-mic1_dict = {"time vector": t,"signal": y1,"label": "Micrófono 1","color": "blue"}
+# Zero padding
+x1_padded = np.pad(x1, (0, N - len(x1)))
+x2_padded = np.pad(x2, (0, N - len(x2)))
 
-mic2_dict = {"time vector": t,"signal": y2,"label": "Micrófono 2","color": "red"}
-
-plot.plot_signal(mic1_dict, mic2_dict,title=f"Señales en micrófonos (θ = {est_theta}°)", grid=True, legend=True, figsize=(10, 4),
-            xlimits=(0.004, 0.006))  # Ajustá según dónde cae el pulso)
+conv = np.convolve(x1, x2)
 
 
+x1_fft = fft.fft(x1_padded)
+x2_fft = fft.fft(x2_padded)
 
+corr_1 = signal.correlate(x1, x2, mode="full")
+corr_2 = x2_fft * np.conjugate(x1_fft)
+corr_2 = np.round(np.real(fft.ifft(corr_2)))
+corr_2 = np.fft.fftshift(corr_2)
+corr_2 = np.roll(corr_2, -1)
+
+corr_3 = af.cross_corr(x1, x2, fs=10, mode = "Classic")
+
+print(f"Señal 1: {x1}")
+print("")
+print(f"Señal 2: {x2}")
+print(f"Señal 1 Padded: {x1_padded}")
+print("")
+print(f"Señal 2 Padded: {x2_padded}")
+print("")
+#print(f"Convolución: {conv}")
+#print("")
+#print(f"FFT 1: {x1_fft}")
+#print("")
+#print(f"FFT 2: {x2_fft}")
+#print("")
+print(f"Correlación en muestras: {corr_1}")
+print("")
+print(f"Longitud de correlación en muestras: {len(corr_1)}")
+print("")
+print(F"Correlación en frecuencia: {corr_2}")
+print("")
+print(f"Longitud de correlación en frecuencia: {len(corr_2)}")
+print("")
+print(f"Correlacion con funcion cross_corr: {corr_3}")
+print("")
+print(f"Longitud: {len(corr_3)}")
 
 
 

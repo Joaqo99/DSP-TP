@@ -41,6 +41,7 @@ def eckart(x1_spectrum, x2_spectrum, phi):
     Input:
         - x1_spectrum: array type object. Reference mic signal spectrum.
         - x2_spectrum: array type object. Comparison mic signal spectrum.
+        - phi: array_type obecjt. Cross spectrum from signal 1 and 2.
     """
     
     #gx1x2 = phi
@@ -49,4 +50,18 @@ def eckart(x1_spectrum, x2_spectrum, phi):
     psi = np.abs(phi) * ((gx1x1 - np.abs(phi))*(gx2x2 - np.abs(phi)))
     return psi
 
-    
+def ht(x1_spectrum, x2_spectrum, phi):
+    """
+    Performs HT or ML weighting.
+    Input:
+        - x1_spectrum: array type object. Reference mic signal spectrum.
+        - x2_spectrum: array type object. Comparison mic signal spectrum.
+        - phi: array_type obecjt. Cross spectrum from signal 1 and 2.
+    """
+    gx1x1 = (np.abs(x1_spectrum))**2
+    gx2x2 = (np.abs(x2_spectrum))**2
+
+    gamma_12 = phi/(np.sqrt(gx1x1*gx2x2))
+    gamma_squared = np.abs(gamma_12)**2
+    psi = (1/np.abs(phi))*(gamma_squared/(1-gamma_squared))
+    return psi

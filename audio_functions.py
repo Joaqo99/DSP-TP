@@ -18,21 +18,27 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
         - fs: int type object. Sample frequency.
         - mode: Str type object. Possible options:
             - "Classic". By default. Performs Classic Cross Correlation.
-            - "Roth". By default. Performs Generalized Cross Correlation with Roth wighting.
-            - "Scot". By default. Performs Generalized Cross Correlation with Scot wighting.
-            - "PHAT". By default. Performs Generalized Cross Correlation with PHAT wighting.
+            - "ROTH". Performs Generalized Cross Correlation with ROTH wighting.
+            - "SCOT". Performs Generalized Cross Correlation with SCOT wighting.
+            - "PHAT". Performs Generalized Cross Correlation with PHAT wighting.
+            - "ECKART". Performs Generalized Cross Correlation with Eckart wighting. This filter version is an approximation where the attenuation factor is neglected.
+            - "HT". Performs Generalized Cross Correlation with HT wighting. ML weighting is considered the same as HT.
     Output:
         - corr: Array type object. Correlation output vector.
     '''
+    
 
     def cs_ifft(x):
         """Performs ifft for weighted cross spectrum"""
         corr = get_ifft(x, input="complex", real = False)
-        corr = np.round(np.real(corr), 6)
         corr = np.fft.fftshift(corr)
+        corr = np.real(corr)
         corr = np.roll(corr, -1)
 
     #check lenght and executes zero pad if needed
+    x1 = np.asarray(x1)
+    x2 = np.asarray(x2)
+    
     N = len(x1) + len(x2) - 1  # N = 5
 
     # Zero padding
@@ -40,29 +46,31 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
     x2_padded = np.pad(x2, (0, N - len(x2)))
 
     #get fft
-    freqs, x1_fft = get_fft(x1_padded, fs, normalize=False, output="complex", real=False)
-    freqs, x2_fft = get_fft(x2_padded, fs, normalize=False, output="complex", real=False)
+    freqs, x1_fft = get_fft(x1_padded, fs, normalize=False, nfft=N, output="complex", real_fft=False)
+    freqs, x2_fft = get_fft(x2_padded, fs, normalize=False, nfft=N, output="complex", real_fft=False)
 
-    cross_spect = x2_fft*np.conjugate(x1_fft)
+    cross_spect = x1_fft*np.conjugate(x2_fft)
 
     #weightings
     if isinstance(mode, str):
         if mode == "Classic":
             psi = 1
-        elif mode == "Roth":
+        elif mode == "ROTH":
             psi = filters.roth(x1_fft)
-            return corr
-        elif mode == "Scot":
+        elif mode == "SCOT":
             psi = filters.scot(x1_fft, x2_fft)
         elif mode == "PHAT":
-            psi = filters.phat(corr)
+            psi = filters.phat(cross_spect)
+        elif mode == "ECKART":
+            psi = filters.eckart(cross_spect)
+        elif mode == "HT":
+            psi = filters.ht(cross_spect)
         else:
             raise ValueError('mode parameter must be either "Classic", "Roth", "Scot" or "PHAT".')
+        weighted_cs = psi*cross_spect
+        corr = cs_ifft(weighted_cs)
     else:
         raise ValueError('mode parameter must be a String object and either "Classic", "Roth", "Scot" or "PHAT".')
-    
-    corr = psi*cross_spect
-    corr = cs_ifft(corr)
     return corr
 
 
@@ -79,10 +87,6 @@ def get_tau(mic_1, mic_2, fs=44100, mode="Classic"):
     corr = cross_corr(mic_2, mic_1, mode=mode)
     n_corr = np.arange(-len(mic_2) +1, len(mic_1))
     tau = (n_corr[np.argmax(corr)]/fs)
-    #corr = signal.correlate(mic_1, mic_2, mode='full')
-    #lags = signal.correlation_lags(len(mic_1), len(mic_2), mode='full')
-    #lag = lags[np.argmax(corr)]     # Retardo en muestras
-    #tau = lag / fs                  # Retardo en segundos
     return tau
 
 def get_taus_n_mic(mic_signals, fs=44100, mode="Classic"):
@@ -105,66 +109,6 @@ def get_taus_n_mic(mic_signals, fs=44100, mode="Classic"):
     
     return taus
 
-
-def get_tau_gcc_phat(sig, refsig, fs=44100, interp=16):
-    """
-    Estima el retardo temporal entre dos señales (sig y refsig)
-    usando el método de Correlación Cruzada Generalizada con ponderación PHAT.
-    
-    Parámetros:
-        sig:     Señal 1 (por ejemplo, del micrófono 1)
-        refsig:  Señal 2 (por ejemplo, del micrófono 2)
-        fs:      Frecuencia de muestreo (Hz)
-        interp:  Factor de interpolación para mayor resolución temporal
-    
-    Devuelve:
-        tau:     Tiempo estimado de retardo (en segundos)
-    """
-    # Longitud total para la FFT (convolución completa)
-    n = sig.shape[0] + refsig.shape[0]
-    # FFT de ambas señales
-    SIG = np.fft.rfft(sig, n=n)
-    REFSIG = np.fft.rfft(refsig, n=n)
-    # Cálculo del espectro cruzado
-    cross_spectrum = SIG * np.conj(REFSIG)
-    # Aplicación del filtro PHAT: normalización por magnitud
-    cross_spectrum_magnitude = np.abs(cross_spectrum)
-    cross_spectrum_phat = cross_spectrum / (cross_spectrum_magnitude + np.finfo(float).eps)
-    # Transformada inversa para obtener la correlación cruzada
-    cc = np.fft.irfft(cross_spectrum_phat, n=(interp * n))
-    # Se define el máximo desplazamiento posible (número de muestras desplazadas)
-    max_shift = int(interp * n / 2)
-    # Reorganizamos los resultados para que el cero esté en el centro
-    cc_shifted = np.concatenate((cc[-max_shift:], cc[:max_shift + 1]))
-    # Localizamos el pico máximo (mayor correlación)
-    max_index = np.argmax(np.abs(cc_shifted))
-    # Calculamos el desplazamiento (en muestras)
-    shift = max_index - max_shift
-    # Convertimos el desplazamiento en tiempo (segundos)
-    tau = shift / float(interp * fs)
-
-    return tau
-
-def get_taus_gcc_phat_n_mic(mic_signals, fs=44100, interp=16):
-    """
-    Calcula el TDOA entre el primer micrófono y todos los demás usando GCC-PHAT.
-
-    Parámetros:
-        mic_signals: lista o array (n_mics x n_samples) con señales por micrófono.
-        fs: frecuencia de muestreo
-        interp: factor de interpolación para mayor resolución en la estimación
-
-    Devuelve:
-        taus: lista de retardos relativos en segundos (el primer mic tiene tau = 0)
-    """
-    reference = mic_signals[0]
-    taus = [0.0]  # El primer mic tiene tiempo de referencia
-
-    for i in range(1, len(mic_signals)):
-        tau = get_tau_gcc_phat(mic_signals[i], reference, fs=fs, interp=interp)
-        taus.append(tau)
-
-    return taus
 def get_direction(d, t, c=340, fs=44100):
     """
     Returns direction of arrival between 2 microphones
@@ -211,46 +155,7 @@ def moving_media_filter(in_signal, N):
     ir = np.ones(N) * 1 / N
     return conv(in_signal, ir)
 
-def synth_impulse_response(fs, reverb_time, noise_florr_level, A=1.0):
-    """
-    Generates a synthetic impulse response
-    Input:
-        - fs: int type object. Sample rate
-        - reverb_time: float type object. Reverb time.
-        - noise_florr_level: int type object. Noise floor presion level.
-        - A: float type object. Exponential amplitude. Optional, 1.0 by default.
-    Output:
-        - t: array type object. Time vector
-        - impulse_response: array type object. Impulse response vector
-    """
 
-    #error handling
-    if type(fs) != int:
-        raise ValueError("fs must be an integer")
-    if type(reverb_time) != float:
-        raise ValueError("reverb_time must be a float")
-    if type(noise_florr_level) != int:
-        raise ValueError("noise_floor_level must be a int")
-    if type(A) != float:
-        raise ValueError("A must be a float")
-
-    #cómo genero n? --> n, t, lo q sea, es arbitrario. Tiene que ser mayor al tiempo de reverberación.
-    dur = reverb_time + 0.25
-    signal_length = int(dur*fs)
-    t = np.linspace(0, dur, signal_length, endpoint=True)
-
-    #generate noise
-    noise = np.random.normal(0, 1, signal_length)
-
-    #envelop
-    tao = reverb_time/6.90
-    envolvente = np.exp(-t/tao)
-
-    #impulse response generator
-    impulse_response = A*envolvente*noise + (10**(noise_florr_level/20))*noise
-    impulse_response = impulse_response/ np.max(np.abs(impulse_response))
-
-    return t, impulse_response
 
 def load_audio(file_name):
     """
@@ -384,20 +289,7 @@ def to_dB(audio):
     audio_db = 10*np.log10(audio**2)
     return audio_db
 
-def generate_time_vector(dur, fs):
-    """
-    Generates a time vector:
-    Inputs:
-        - dur: float type object. Vector time duration
-        - fs: int type object. Sample frequency.
-    Outputs:
-        - t: array type object. Time vector
-    """
-
-    t = np.linspace(0, dur, int(dur*fs))
-    return t
-
-def get_fft(in_signal, fs, normalize=True, output="mag-phase", real=True):
+def get_fft(in_signal, fs, normalize=True, output="mag-phase", real_fft=True, nfft = None):
     """
     Performs a fast fourier transform over the input signal. As we're working with real signals, we perform the rfft.
     Input:
@@ -417,25 +309,26 @@ def get_fft(in_signal, fs, normalize=True, output="mag-phase", real=True):
         - in_freqs: array type object. Real Frequencies domain vector.
         - fft: array type object. Real Frequencies raw fft vector.
     """
-    if real:
-        fft = scfft.rfft(in_signal)
-        in_freqs = np.linspace(0, fs//2, len(fft))
+    if real_fft:
+        rfft = scfft.rfft(in_signal, n = nfft)
+        in_freqs = np.linspace(0, fs//2, len(rfft))
     else:
-        fft = scfft.fft(in_signal)
-        in_freqs = np.linspace(0, fs//2, len(fft))
+        rfft = np.fft.fft(in_signal, n = nfft)
+        in_freqs = np.fft.fftfreq(len(in_signal), d=1/fs)
+
     #import pdb;pdb.set_trace()
 
     if output == "complex":
-        return in_freqs, fft
+        return in_freqs, rfft
     elif output == "mag-phase":
-        rfft_mag = abs(fft)/len(fft)
+        rfft_mag = abs(rfft)/len(rfft)
         if normalize: rfft_mag = rfft_mag / np.max(abs(rfft_mag))
-        rfft_phase = np.angle(fft)
+        rfft_phase = np.angle(rfft)
         return in_freqs, rfft_mag, rfft_phase
     else:
         raise ValueError('No valid output format - Must be "mag-phase" or "complex"')
 
-def get_ifft(in_rfft, in_phases=False, input="mag-phase", real=True):
+def get_ifft(in_rfft, in_phases=False, input="mag-phase", nfft = None):
     """
     Performs an inverse fast Fourier transform of a real signal
     Input:
@@ -457,10 +350,7 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase", real=True):
     else:
         raise ValueError('Input format must be "mag_phase" or "complex"')
     
-    if real:
-        temp_signal = scfft.irfft(in_rfft)
-    else:
-        temp_signal = scfft.ifft(in_rfft)
+    temp_signal = scfft.ifft(in_rfft, n = nfft)
     return temp_signal
 
 
@@ -520,27 +410,71 @@ def rir(tau=0.15, rir_A=0.05, fs=44100, phi=-120, duration=0.1):
     return rir_synth
 
 
-def apply_reverb_synth(mic_signals, fs=44100, tau=0.15, rir_A = 0.05, p_noise = 0.1, phi=-120, duration=0.1):
+
+def synth_impulse_response(fs, reverb_time, noise_florr_level, A=1.0, signal_length=False):
+    """
+    Generates a synthetic impulse response
+    Input:
+        - fs: int type object. Sample rate
+        - reverb_time: float type object. Reverb time.
+        - noise_florr_level: int type object. Noise floor presion level.
+        - A: float type object. Exponential amplitude. Optional, 1.0 by default.
+        - signal_length: int type object.
+    Output:
+        - t: array type object. Time vector
+        - impulse_response: array type object. Impulse response vector
+    """
+
+    #error handling
+    if type(fs) != int:
+        raise ValueError("fs must be an integer")
+    if type(reverb_time) != float:
+        raise ValueError("reverb_time must be a float")
+    if type(noise_florr_level) != int:
+        raise ValueError("noise_floor_level must be a int")
+    if type(A) != float:
+        raise ValueError("A must be a float")
+
+    #cómo genero n? --> n, t, lo q sea, es arbitrario. Tiene que ser mayor al tiempo de reverberación.
+
+    if signal_length:
+        pass
+    else:
+        dur = reverb_time + 0.25
+        signal_length = int(dur*fs)
+
+    t = np.linspace(0, dur, signal_length, endpoint=True)
+
+    #generate noise
+    noise = np.random.normal(0, 1, signal_length)
+
+    #envelop
+    tao = reverb_time/6.90
+    envolvente = np.exp(-t/tao)
+
+    #impulse response generator
+    impulse_response = A*envolvente*noise + (10**(noise_florr_level/20))*noise
+    impulse_response = impulse_response/ np.max(np.abs(impulse_response))
+
+    return t, impulse_response
+
+
+def apply_reverb_synth(mic_signals, fs=44100, reverb_time=1, p_noise = 0.1, noise_floor_level=-120.0, duration=0.1, A=1.0):
     """
     Aplica reverberación a una lista de señales de micrófonos.
+    Applies reverberation to a list of microphone signals.
 
-    Parámetros
-    ----------
-    mic_signals : list of ndarray
-        Lista de señales por micrófono.
-    fs : int
-        Frecuencia de muestreo.
-    tau : float
-        Constante de decaimiento de la envolvente exponencial (más alto = más larga la cola de reverberación).
-    phi : float
-        Nivel del piso de ruido en dB (debe ser negativo).
-    duration : float
-        Duración total de cada señal en segundos.
+    Input:
+        - mic_signals: List type object. List of microphone signals.
+        - fs: int type object. Sample frequency.
+        - reverb_time: float_type obejt. 
+        - p_noise: float type object. Pink noise amplitude.
+        - noise_floor_level: float type object.
+        - duration: float type object. Total duration of each signal in seconds.
+        - A: float type object. IR Amplitude.
 
-    Retorna
-    -------
-    mic_signals_rir : list of ndarray
-        Lista de señales con reverberación agregada.
+    Output:
+        - mic_signals_rir : array type object. List of signals with added reverb.
     """
     mic_signals_rir = []
     
@@ -553,7 +487,8 @@ def apply_reverb_synth(mic_signals, fs=44100, tau=0.15, rir_A = 0.05, p_noise = 
         attenuation = p_noise
         pink_noise = cn.powerlaw_psd_gaussian(beta, int(fs*duration)) * attenuation
         
-        rir_synth = rir(tau=tau, fs=fs, phi=phi, duration=duration, rir_A=rir_A)  # Calculo el RIR sintetico
+        #rir_synth = rir(tau=tau, fs=fs, phi=phi, duration=duration, rir_A=rir_A)  # Calculo el RIR sintetico
+        rir_synth = synth_impulse_response(fs, reverb_time, noise_floor_level, A=A)  # Calculo el RIR sintetico
         # Convolución
         sig_full = signal.fftconvolve(sig, rir_synth, mode="full")
         signal_rir = sig_full[:(int(len(sig_full)/2) + 1)]
