@@ -430,11 +430,10 @@ def synth_impulse_response(fs, reverb_time, noise_florr_level, A=1.0, signal_len
         raise ValueError("fs must be an integer")
     if type(reverb_time) != float:
         raise ValueError("reverb_time must be a float")
-    if type(noise_florr_level) != int:
-        raise ValueError("noise_floor_level must be a int")
-    if type(A) != float:
-        raise ValueError("A must be a float")
-
+    if not isinstance(noise_florr_level, (int, float)):
+        raise ValueError("Noise floor must be either int or float")
+    if not isinstance(A, (int, float)):
+        raise ValueError("IR Amplitude must be either int or float")
     #cómo genero n? --> n, t, lo q sea, es arbitrario. Tiene que ser mayor al tiempo de reverberación.
 
     if signal_length:
