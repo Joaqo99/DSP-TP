@@ -6,6 +6,7 @@ from scipy import fft as scfft
 import numpy as np
 import colorednoise as cn
 import filters
+import json
 
 def cross_corr(x1, x2, fs=44100, mode="Classic"):
     '''
@@ -495,3 +496,69 @@ def apply_reverb_synth(mic_signals, fs=44100, reverb_time=1, p_noise = 0.1, nois
         mic_signals_rir.append(signal_rir)
       
     return mic_signals_rir
+
+
+
+
+def gen_simulation_dict(name, *mods_dict, audio_filename="delta.wav"):
+    """
+    Generates a dictionary with particular simulation conditions.
+    Input:
+        - name: str type object.
+        - mods_dict: dictionary with modifications from default simulation. Contains:
+            - var: room, source, mic_array.
+            - param: selected parameteres from the variable to modify.
+            - value: selected value for parameter.
+
+
+    Parámetros de cada simulación:
+    - Room: Dimensiones, T60, relación señal ruido. Nombres de las variables: (room: {dim, t60, snr, reflections_order})
+    - Fuente: Posición/ángulo de la fuente. Señal. Nombres de las variables: (source: {position, signal, fs})
+    - Array: cantidad de micrófonos, distancia entre micrófonos, patrón polar. Nombres de las variables: (mic_array: {n, d, pol_pat, position})
+        
+    """
+
+    def default_simulation():
+        """
+        Generates a default simulation dictionary.
+        """
+
+        fs = 48000
+
+        #genero señal delta de dirac con duración de 1 seg y con el pulso a la mitad de la señal
+        delta = np.zeros(fs)
+        delta[len(delta)//2] = 1 
+
+
+        default = {
+            "name":"dafult",
+            "room" : {"dim":[5, 6, 2], "t60":1, "snr":20, "reflections_order":100},
+            "source": {"position":[1, 1, 1], "audio_filename":"delta", "fs":48000},
+            "mic_array": {"n":4, "d": 0.1, "pol_pat": "omni", "position":[5, 5, 1]},
+        }
+
+        return default
+
+    new_dict = default_simulation()
+    new_dict["name"] = name
+    for mod in mods_dict:
+        var = mod["var"]
+        param = mod["param"]
+        value = mod["value"]
+        new_dict[var][param] = value
+
+        
+    filename = f"simulaciones/{name}"
+    with open(filename, "w") as f:
+        json.dump(new_dict, f, indent=4) # indent for pretty-printing (optional)
+        print(f"Simulación generada en {filename}")
+
+
+
+        
+
+def simulate():
+    # generar room con pyroom
+    # aplicar correlación cruzada con todas las ponderaciones
+    # obtener error con la 
+    pass
