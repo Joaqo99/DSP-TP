@@ -8,6 +8,7 @@ import colorednoise as cn
 import filters
 import json
 import pyroomacoustics as pra
+import pandas as pd
 
 def cross_corr(x1, x2, fs=44100, mode="Classic"):
     '''
@@ -597,3 +598,58 @@ def simulate(sim_config_name):
     #5) realizo simulación
     room.simulate(snr=snr)
     return room
+
+
+def process_simulation_data(*sim_configs, df_values=False):
+    """
+    Procesa la información sobre las simulaciones realizadas. 
+    Devuelve un DataFrame con los valores por defecto de cada simulación:
+    expected_theta, theta_prom, error, est_theta_list
+    """
+
+    # Valores por defecto
+    df_values = ["expected_theta", "theta_prom", "error", "est_theta_list"]
+
+    rows = []
+
+    for sim_conf_name in sim_configs:
+        with open(f"simulaciones/{sim_conf_name}", "r") as f:
+            sim_conf = json.load(f)
+
+        # --- Cálculo del ángulo esperado ---
+        source_pos = sim_conf["source"]["position"]
+        array_pos = sim_conf["mic_array"]["position"] #esto corresponde a la posición del mic de ref
+        d = sim_conf["mic_array"]["d"]
+        n = sim_conf["mic_array"]["n"]
+        arr_center_x, arr_center_y, arr_center_z = array_pos
+        arr_center_y += (d * n) / 2
+        source_x, source_y, source_z = source_pos
+
+        expected_theta = np.arccos(np.abs(source_x - arr_center_x) / np.sqrt(
+            (source_x- arr_center_x)**2 + (source_y - arr_center_y)**2 + (source_z - arr_center_z)**2
+        ))
+
+        expected_theta = np.round(np.rad2deg(expected_theta), 3)
+
+        # --- Simulación y estimación ---
+        fs = sim_conf["source"]["fs"]
+        room = simulate(sim_conf_name)
+        mic_signals = room.mic_array.signals
+
+        tau_list = get_taus_n_mic(mic_signals, fs, mode="Classic")
+        est_theta_list = get_direction_n_signals(d, tau_list, 343, fs)
+        est_theta_list = [round(x, 2) for x in est_theta_list]
+        theta_prom = np.sum(est_theta_list[1:]) / (len(est_theta_list) - 1)
+        error = np.mean((expected_theta - theta_prom) ** 2)
+
+        row = {
+            "expected_theta": expected_theta,
+            "theta_prom": theta_prom,
+            "error": error,
+            "est_theta_list": est_theta_list
+        }
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)[df_values]
+        
