@@ -8,7 +8,7 @@
         ],
         "t60": 1,
         "snr": 20,
-        "reflections_order": 100
+        "reflex_order": 100
     },
     "source": {
         "position": [
@@ -16,17 +16,17 @@
             1,
             1
         ],
-        "audio_filename": "delta",
+        "audio_filename": "audios_anecoicos/p336_001.wav",
         "fs": 48000
     },
     "mic_array": {
         "n": 4,
-        "d": 0.5,
+        "d": 0.1,
         "pol_pat": "omni",
         "position": [
-            5,
-            5,
-            1
+            4,
+            4,
+            1.2
         ]
     }
 }

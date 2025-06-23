@@ -498,7 +498,7 @@ def apply_reverb_synth(mic_signals, fs=44100, reverb_time=1, p_noise = 0.1, nois
       
     return mic_signals_rir
 
-def gen_simulation_dict(name, *mods_dict, audio_filename="delta.wav"):
+def gen_simulation_dict(name, *mods_dict, audio_filename="audios_anecoicos/delta.wav"):
     """
     Generates a dictionary with particular simulation conditions.
     Input:
@@ -523,15 +523,11 @@ def gen_simulation_dict(name, *mods_dict, audio_filename="delta.wav"):
 
         fs = 48000
 
-        #genero señal delta de dirac con duración de 1 seg y con el pulso a la mitad de la señal
-        delta = np.zeros(fs)
-        delta[len(delta)//2] = 1 
-
 
         default = {
             "name":"dafult",
             "room" : {"dim":[5, 6, 2], "t60":1, "snr":20, "reflex_order":100},
-            "source": {"position":[1, 1, 1], "audio_filename":"delta", "fs":48000},
+            "source": {"position":[1, 1, 1], "audio_filename":audio_filename, "fs":48000},
             "mic_array": {"n":4, "d": 0.1, "pol_pat": "omni", "position":[5, 5, 1]},
         }
 
@@ -545,16 +541,19 @@ def gen_simulation_dict(name, *mods_dict, audio_filename="delta.wav"):
         value = mod["value"]
         new_dict[var][param] = value
 
-        
+    
     filename = f"simulaciones/{name}"
     with open(filename, "w") as f:
         json.dump(new_dict, f, indent=4) # indent for pretty-printing (optional)
         print(f"Simulación generada en {filename}")
 
+
+
 def simulate(sim_config_name):
     #1) Levantamos los datos de la configuración de simulación
     with open(f"simulaciones/{sim_config_name}", "r") as f:
         sim_config = json.load(f)
+
 
     #2) generar room con pyroom
     room_dim = sim_config["room"]["dim"]
@@ -569,8 +568,8 @@ def simulate(sim_config_name):
     temperature = 20
     humidity = 40
 
-    room = pra.Shoebox(room_dim, fs=fs, max_order=reflex_order, materials=pra.Material(eabs), temperature=temperature, humidity=humidity)
-    
+    room = pra.ShoeBox(room_dim, fs=fs, max_order=reflex_order, materials=pra.Material(eabs), temperature=temperature, humidity=humidity)
+
     #3) coloco micrófonos
     d_mic = sim_config["mic_array"]["d"]
     n_mic = sim_config["mic_array"]["n"]
@@ -587,12 +586,14 @@ def simulate(sim_config_name):
     mic_array_loc = np.c_[*mics_pos]
     room.add_microphone_array(mic_array_loc)
 
+
     #4) coloco fuente
     source_pos = sim_config["source"]["position"]
     audio_filename = sim_config["source"]["audio_filename"]
-    audio = load_audio(audio_filename)
+    audio, _ = load_audio(audio_filename)
     room.add_source(source_pos, signal=audio)
+    
 
     #5) realizo simulación
-    simulated_room = room.simulate(snr=snr)
-    return simulated_room
+    room.simulate(snr=snr)
+    return room
