@@ -413,3 +413,14 @@ def unit_plot(*vectors, xticks=None, yticks=None, title=None, file_name=False, g
         plt.show()
     else:
         plt.ioff()
+
+
+def plot_room(fig=None, ax=None, xlim=0, ylim=0, zlim=0):
+    if fig == None and ax == None:
+        plt.show()
+    else:
+        ax.set_xlim([0,xlim])
+        ax.set_ylim([0,ylim])
+        ax.set_zlim([0,zlim])
+        plt.show()
+    return
