@@ -77,7 +77,7 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
         raise ValueError('mode parameter must be a String object and either "Classic", "Roth", "Scot" or "PHAT".')
 
 
-def get_tau(mic_1, mic_2, fs=44100, mode="Classic"):
+def get_tau(mic_1, mic_2, max_tau, fs=44100, mode="Classic"):
     """
     Gets the arrival time diference between 2 microphones
     Input:
@@ -89,10 +89,11 @@ def get_tau(mic_1, mic_2, fs=44100, mode="Classic"):
     """
     corr = cross_corr(mic_2, mic_1, mode=mode)
     n_corr = np.arange(-len(mic_2) +1, len(mic_1))
+    n_corr = n_corr[len(n_corr)//2 - max_tau : len(n_corr) //2 + max_tau]
     tau = (n_corr[np.argmax(corr)]/fs)
     return tau
 
-def get_taus_n_mic(mic_signals, fs=44100, mode="Classic"):
+def get_taus_n_mic(mic_signals, max_tau, fs=44100, mode="Classic"):
     """
     Calcula el tiempo de arribo relativo (TDOA) entre el primer micrófono y los demás.
 
@@ -107,7 +108,7 @@ def get_taus_n_mic(mic_signals, fs=44100, mode="Classic"):
     taus = [0.0]  # El micrófono de referencia tiene retardo 0
 
     for i in range(1, len(mic_signals)):
-        tau = get_tau(reference, mic_signals[i], fs=fs, mode=mode)
+        tau = get_tau(reference, mic_signals[i], max_tau=max_tau, fs=fs, mode=mode)
         taus.append(tau)
     
     return taus
@@ -417,7 +418,7 @@ def gen_simulation_dict(name, *mods_dict, audio_filename="audios_anecoicos/delta
 
         default = {
             "name":"dafult",
-            "room" : {"dim":[5, 6, 2], "t60":1, "snr":20, "reflex_order":100},
+            "room" : {"dim":[5, 6, 2], "t60":1, "snr":40, "reflex_order":100},
             "source": {"position":[1, 1, 1], "audio_filename":audio_filename, "fs":48000},
             "mic_array": {"n":4, "d": 0.1, "pol_pat": "omni", "position":[5, 5, 1]},
         }
@@ -459,7 +460,7 @@ def simulate(sim_config_name):
     temperature = 20
     humidity = 40
 
-    room = pra.ShoeBox(room_dim, fs=fs, max_order=reflex_order, materials=pra.Material(eabs), temperature=temperature, humidity=humidity)
+    room = pra.ShoeBox(room_dim, fs=fs, max_order=reflex_order, materials=pra.Material(eabs), temperature=temperature, humidity=humidity, air_absorption=True)
 
     #3) coloco micrófonos
     d_mic = sim_config["mic_array"]["d"]
@@ -490,56 +491,77 @@ def simulate(sim_config_name):
     return room
 
 
-def process_simulation_data(*sim_configs, df_values=False):
+def process_simulation_data(*sim_configs, c=343):
     """
-    Procesa la información sobre las simulaciones realizadas. 
-    Devuelve un DataFrame con los valores por defecto de cada simulación:
-    expected_theta, theta_prom, error, est_theta_list
+    Procesa múltiples simulaciones. Devuelve un DataFrame en formato largo con:
+    - expected_theta
+    - método de estimación
+    - ángulo estimado promedio (theta_prom)
+    - error cuadrático medio (error)
+    - lista de ángulos estimados (est_theta_list)
+
+    Cada fila del DataFrame representa una simulación y un método.
     """
 
-    # Valores por defecto
-    df_values = ["expected_theta", "theta_prom", "error", "est_theta_list"]
+    methods = ["Classic", "ROTH", "PHAT", "SCOT", "ECKART", "HT"]  # Reemplazá por los métodos que estés usando
+
 
     rows = []
 
     for sim_conf_name in sim_configs:
+        # --- Cargar configuración de simulación ---
         with open(f"simulaciones/{sim_conf_name}", "r") as f:
             sim_conf = json.load(f)
 
-        # --- Cálculo del ángulo esperado ---
+        # --- Parámetros básicos ---
         source_pos = sim_conf["source"]["position"]
-        array_pos = sim_conf["mic_array"]["position"] #esto corresponde a la posición del mic de ref
+        array_pos = sim_conf["mic_array"]["position"]  # referencia del array
         d = sim_conf["mic_array"]["d"]
         n = sim_conf["mic_array"]["n"]
+        fs = sim_conf["source"]["fs"]
+
+        # Centrar el array
         arr_center_x, arr_center_y, arr_center_z = array_pos
         arr_center_y += (d * n) / 2
         source_x, source_y, source_z = source_pos
 
+        # Ángulo esperado en grados
         expected_theta = np.arccos(np.abs(source_x - arr_center_x) / np.sqrt(
-            (source_x- arr_center_x)**2 + (source_y - arr_center_y)**2 + (source_z - arr_center_z)**2
+            (source_x - arr_center_x)**2 + (source_y - arr_center_y)**2 + (source_z - arr_center_z)**2
         ))
-
         expected_theta = np.round(np.rad2deg(expected_theta), 3)
 
-        # --- Simulación y estimación ---
-        fs = sim_conf["source"]["fs"]
+        # --- Simulación ---
         room = simulate(sim_conf_name)
         mic_signals = room.mic_array.signals
 
-        tau_list = get_taus_n_mic(mic_signals, fs, mode="Classic")
-        est_theta_list = get_direction_n_signals(d, tau_list, 343, fs)
-        est_theta_list = [round(x, 2) for x in est_theta_list]
-        theta_prom = np.sum(est_theta_list[1:]) / (len(est_theta_list) - 1)
-        error = np.mean((expected_theta - theta_prom) ** 2)
+        #Filtrado de la señal para evitar aliasing espacial
+        sos_filter = filters.anti_alias_filter(c, d, fs, order=1)
+        mic_signals = [signal.sosfilt(sos_filter, x) for x in mic_signals]
+        for method in methods:
+            try:
+                # Estimación de dirección
+                tau_list = get_taus_n_mic(mic_signals, fs, mode=method)
+                print(tau_list)
+                est_theta_list = get_direction_n_signals(d, tau_list, c, fs)
+                est_theta_list = [np.round(x, 2) for x in est_theta_list]  # a grados
+                print(est_theta_list)
+                #est_theta_list = [x for x in est_theta_list if not np.isnan(x)]
+                # Promedio sin micrófono de referencia
+                theta_prom = np.mean(est_theta_list[1:])
+                error = np.mean((expected_theta - theta_prom) ** 2)
 
-        row = {
-            "expected_theta": expected_theta,
-            "theta_prom": theta_prom,
-            "error": error,
-            "est_theta_list": est_theta_list
-        }
+                rows.append({
+                    "sim_name": sim_conf_name,
+                    "expected_theta": expected_theta,
+                    "method": method,
+                    "theta_prom": round(theta_prom, 3),
+                    "error": round(error, 4),
+                    "est_theta_list": est_theta_list
+                })
+            except Exception as e:
+                print(f"Error en {sim_conf_name} con método {method}: {e}")
+                continue
 
-        rows.append(row)
-
-    return pd.DataFrame(rows)[df_values]
+    return pd.DataFrame(rows)
         

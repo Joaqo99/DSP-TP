@@ -59,8 +59,6 @@ def eckart(X1_fft, X2_fft, x1, x2, snr_db = 15):
     
     return psi
     
-
-
 def ht(x1_spectrum, x2_spectrum, phi):
     """
     Performs HT / ML weighting.
@@ -85,3 +83,16 @@ def ht(x1_spectrum, x2_spectrum, phi):
     psi = (1/(np.abs(phi) + epsilon))*(gamma_squared/(1-gamma_squared))
 
     return psi
+
+def anti_alias_filter(c, d, fs, order=1):
+    """
+    Anti spatial aliasing filter.
+    Input:
+        - c: sound speed.
+        - d: microphone separation distance.
+    Output:
+        -
+    """
+    fc = (c/2*d)/(fs*0.5)
+    sos_filter = signal.butter(order, fc, btype="lowpass", output="sos")
+    return sos_filter
