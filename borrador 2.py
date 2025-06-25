@@ -24,20 +24,60 @@ def get_tau_V2(mic_1, mic_2, max_tau, mode="Classic"):
     tau = (n_corr[np.argmax(corr)])
     return tau
 
-
-def get_direction(d, tau, c=340, fs=44100):
+def get_tau(mic_1, mic_2, d, fs=48000, c=343, mode="Classic"):
     """
-    Returns direction of arrival between 2 microphones
+    Gets the arrival time difference (TDOA) between 2 microphones,
+    limiting search to max physically possible tau based on mic spacing.
+    
     Input:
-        - d: float type object. Distance between microphones.
-        - t: float type object. Time arrival difference between microphones.
-        - c: Int type object. Sound propagation speed.
-        - fs: Int type object. Sample Frequency.
+        - mic_1 (np.ndarray): Signal from the first microphone.
+        - mic_2 (np.ndarray): Signal from the second microphone.
+        - d (float): Distance between the microphones in meters.
+        - fs (int, optional): Sampling rate in Hz. Default is 48000.
+        - c (float, optional): Speed of sound in m/s. Default is 343.
+        - mode (str, optional): Correlation mode used in `cross_corr`. 
+                              Typically "Classic" or another implemented method.
+    Returns:
+        - float: Estimated TDOA (time delay) in seconds.
     """
-    t = tau/fs
-    angle = np.arccos(c*t/d)
-    angle = np.rad2deg(angle)
-    return angle
+    tau_max_sec = d / c
+    tau_max_samples = int(np.round(tau_max_sec * fs))
+       
+    # Correlación completa y vector de lags completo
+    corr_full = auf.cross_corr(mic_2, mic_1, mode=mode)
+    n_full = np.arange(-len(mic_2)+1, len(mic_1))
+    
+    mid = len(n_full)//2
+    
+    # Ventana [mid-tau_max : mid+tau_max]
+    A = 5 # Escalar para agrandar la ventana
+    start = mid - tau_max_samples * A
+    end   = mid + tau_max_samples * A + 1   # +1 porque el corte de Python no incluye el extremo
+    
+    # Clamp para no salir de índices
+    start = max(start, 0)
+    end   = min(end, len(n_full))
+    
+    n_cut  = n_full[start:end]
+    corr_cut = corr_full[start:end]
+    
+    idx_local = np.argmax(corr_cut)
+    lag = n_cut[idx_local]
+
+    tau = lag / fs
+
+    return tau
+
+def get_direction(d, tau, c=343, fs =44100):
+    """
+    d: distancia entre micrófonos (m)
+    tau: TDOA en segundos (ya calculado como muestras/fs)
+    c: velocidad sonido (m/s)
+    """
+    arg = c * tau / d
+    arg = np.clip(arg, -1.0, 1.0)
+    angle = np.arccos(arg)
+    return np.rad2deg(angle)
 
 methods = ["Classic", "ROTH", "PHAT", "SCOT", "ECKART", "HT"]
 
@@ -56,11 +96,10 @@ def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
                 mic_tau_list.append(0.0)
                 mic_theta_list.append(0.0)
             else:
-                d_mics = d*((mic_num_2)-mic_num_1)
-                print(f"Tau entre mic {mic_num_1} y {mic_num_2}")
-                print(d_mics)
-                max_tau = np.abs(d_mics/c)*fs
-                tau = get_tau_V2(mic_signal_1, mic_signal_2, max_tau, mode=method)
+                #d_mics = d*((mic_num_2)-mic_num_1)
+                delta = mic_num_2 - mic_num_1
+                d_mics = abs(delta) * d
+                tau = get_tau(mic_signal_1, mic_signal_2, d, mode=method)
                 mic_tau_list.append(tau)
                 theta = get_direction(d_mics, tau, c=c, fs=fs)
                 mic_theta_list.append(theta)

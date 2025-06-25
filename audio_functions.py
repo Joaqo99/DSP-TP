@@ -10,7 +10,7 @@ import json
 import pyroomacoustics as pra
 import pandas as pd
 
-def cross_corr(x1, x2, fs=44100, mode="Classic"):
+def cross_corr(x1, x2, fs=48000, mode="Classic"):
     '''
     Computes correlation between signals. 
     The correlation method varies with mode parameter if clasic cross correlation or generalized version with wightings.
@@ -77,23 +77,51 @@ def cross_corr(x1, x2, fs=44100, mode="Classic"):
         raise ValueError('mode parameter must be a String object and either "Classic", "Roth", "Scot" or "PHAT".')
 
 
-def get_tau(mic_1, mic_2, max_tau, fs=44100, mode="Classic"):
+def get_tau(mic_1, mic_2, d, fs=48000, c=343, mode="Classic"):
     """
-    Gets the arrival time diference between 2 microphones
+    Gets the arrival time difference (TDOA) between 2 microphones,
+    limiting search to max physically possible tau based on mic spacing.
+    
     Input:
-        - mic_1: array type object. Microhpone 1 signal.
-        - mic_2: array type object. Microhpone 2 signal.
-        - fs: 
-    Output:
-        t: float type object. Arrival time diference
+        - mic_1 (np.ndarray): Signal from the first microphone.
+        - mic_2 (np.ndarray): Signal from the second microphone.
+        - d (float): Distance between the microphones in meters.
+        - fs (int, optional): Sampling rate in Hz. Default is 48000.
+        - c (float, optional): Speed of sound in m/s. Default is 343.
+        - mode (str, optional): Correlation mode used in `cross_corr`. 
+                              Typically "Classic" or another implemented method.
+    Returns:
+        - float: Estimated TDOA (time delay) in seconds.
     """
-    corr = cross_corr(mic_2, mic_1, mode=mode)
-    n_corr = np.arange(-len(mic_2) +1, len(mic_1))
-    n_corr = n_corr[len(n_corr)//2 - max_tau : len(n_corr) //2 + max_tau]
-    tau = (n_corr[np.argmax(corr)]/fs)
+    tau_max_sec = d / c
+    tau_max_samples = int(np.round(tau_max_sec * fs))
+       
+    # Correlación completa y vector de lags completo
+    corr_full = cross_corr(mic_2, mic_1, mode=mode)
+    n_full = np.arange(-len(mic_2)+1, len(mic_1))
+    
+    mid = len(n_full)//2
+    
+    # Ventana [mid-tau_max : mid+tau_max]
+    A = 5 # Escalar para agrandar la ventana
+    start = mid - tau_max_samples * A
+    end   = mid + tau_max_samples * A + 1   # +1 porque el corte de Python no incluye el extremo
+    
+    # Clamp para no salir de índices
+    start = max(start, 0)
+    end   = min(end, len(n_full))
+    
+    n_cut  = n_full[start:end]
+    corr_cut = corr_full[start:end]
+    
+    idx_local = np.argmax(corr_cut)
+    lag = n_cut[idx_local]
+
+    tau = lag / fs
+
     return tau
 
-def get_taus_n_mic(mic_signals, max_tau, fs=44100, mode="Classic"):
+def get_taus_n_mic(mic_signals, d, fs=48000, mode="Classic"):
     """
     Calcula el tiempo de arribo relativo (TDOA) entre el primer micrófono y los demás.
 
@@ -108,12 +136,12 @@ def get_taus_n_mic(mic_signals, max_tau, fs=44100, mode="Classic"):
     taus = [0.0]  # El micrófono de referencia tiene retardo 0
 
     for i in range(1, len(mic_signals)):
-        tau = get_tau(reference, mic_signals[i], max_tau=max_tau, fs=fs, mode=mode)
+        tau = get_tau(reference, mic_signals[i], d=d, fs=fs, mode=mode)
         taus.append(tau)
     
     return taus
 
-def get_direction(d, t, c=340, fs=44100):
+def get_direction(d, t, c=340, fs=48000):
     """
     Returns direction of arrival between 2 microphones
     Input:
@@ -122,11 +150,13 @@ def get_direction(d, t, c=340, fs=44100):
         - c: Int type object. Sound propagation speed.
         - fs: Int type object. Sample Frequency.
     """
-    angle = np.arccos(c*t/d)
+    arg = (t * c) / d
+    arg = np.clip(arg, -1.0, 1.0)  # limitar argumento entre -1 y 1
+    angle = np.arccos(arg)
     angle = np.rad2deg(angle)
     return angle
 
-def get_direction_n_signals(d,taus, c=343, fs=44100):
+def get_direction_n_signals(d,taus, c=343, fs=48000):
     """
     Calcula los ángulos estimados de llegada del sonido para múltiples micrófonos.
     
@@ -134,7 +164,7 @@ def get_direction_n_signals(d,taus, c=343, fs=44100):
         - taus: list of float. Lista de retardos respecto al micrófono de referencia.
         - d: float. Distancia entre micrófonos.
         - c: float. Velocidad del sonido (por defecto 343 m/s).
-        - fs: int. Frecuencia de muestreo (por defecto 44100 Hz).
+        - fs: int. Frecuencia de muestreo (por defecto 48000 Hz).
     
     Output:
         - angles: list of float. Ángulos estimados en grados.
@@ -361,7 +391,7 @@ def get_ifft(in_rfft, in_phases=False, input="mag-phase", nfft = None, real = Tr
     return temp_signal
 
 
-def apply_noise(mic_signals, fs=44100, A_noise = 0.1, duration=0.1):
+def apply_noise(mic_signals, fs=48000, A_noise = 0.1, duration=0.1):
     """
     Applies pink noise to a list of microphone signals.
 
