@@ -24,7 +24,7 @@ def get_tau_V2(mic_1, mic_2, max_tau, mode="Classic"):
     tau = (n_corr[np.argmax(corr)])
     return tau
 
-def get_tau(mic_1, mic_2, d, fs=48000, c=343, mode="Classic"):
+def get_tau(mic_1, mic_2, d, fs=48000, c=343, mode="Classic", A = 1):
     """
     Gets the arrival time difference (TDOA) between 2 microphones,
     limiting search to max physically possible tau based on mic spacing.
@@ -45,12 +45,12 @@ def get_tau(mic_1, mic_2, d, fs=48000, c=343, mode="Classic"):
        
     # Correlación completa y vector de lags completo
     corr_full = auf.cross_corr(mic_2, mic_1, mode=mode)
-    n_full = np.arange(-len(mic_2)+1, len(mic_1))
+    n_full = np.arange( - len(mic_2) + 1, len(mic_1))
     
-    mid = len(n_full)//2
+    mid = len(n_full) // 2
     
     # Ventana [mid-tau_max : mid+tau_max]
-    A = 5 # Escalar para agrandar la ventana
+    # A: Escalar para agrandar la ventana
     start = mid - tau_max_samples * A
     end   = mid + tau_max_samples * A + 1   # +1 porque el corte de Python no incluye el extremo
     
@@ -61,8 +61,7 @@ def get_tau(mic_1, mic_2, d, fs=48000, c=343, mode="Classic"):
     n_cut  = n_full[start:end]
     corr_cut = corr_full[start:end]
     
-    idx_local = np.argmax(corr_cut)
-    lag = n_cut[idx_local]
+    lag = n_cut[np.argmax(corr_cut)] # cantidad de muestras desplazadas entre una señal y la otra
 
     tau = lag / fs
 
@@ -96,10 +95,13 @@ def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
                 mic_tau_list.append(0.0)
                 mic_theta_list.append(0.0)
             else:
-                #d_mics = d*((mic_num_2)-mic_num_1)
+                #d_mics = d*((mic_num_i)-mic_num_1)
                 delta = mic_num_2 - mic_num_1
+                print(f"MIC {mic_num_2}",f"MIC {mic_num_1}")
+                
                 d_mics = abs(delta) * d
-                tau = get_tau(mic_signal_1, mic_signal_2, d, mode=method)
+                #print("D_mics: ", d_mics)
+                tau = get_tau(mic_signal_1, mic_signal_2, d_mics, mode=method, A = 1)
                 mic_tau_list.append(tau)
                 theta = get_direction(d_mics, tau, c=c, fs=fs)
                 mic_theta_list.append(theta)
@@ -109,7 +111,8 @@ def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
 
     tau_matrix = np.array(tau_matrix)
     theta_matrix = np.array(theta_matrix)
-    print(theta_matrix)
+    print(tau_matrix)
+    #print(theta_matrix)
     theta_matrix = np.round(theta_matrix, 2)
     theta_matrix_flattened = theta_matrix.flatten()
     theta_matrix_cleaned = np.delete(theta_matrix_flattened, np.where(theta_matrix_flattened == 0.0))
@@ -157,6 +160,31 @@ def process_simulation_data(*sim_configs, c=343):
             (source_x - arr_center_x)**2 + (source_y - arr_center_y)**2 + (source_z - arr_center_z)**2
         ))
         expected_theta = np.round(np.rad2deg(expected_theta), 3)
+        print(f"Expected theta: {expected_theta}")
+        """
+        OTRO METODO
+        dx = source_x - arr_center_x
+        dy = source_y - arr_center_y
+
+        # Distancia en el plano XY
+        r_xy = np.hypot(dx, dy)
+        if r_xy == 0:
+            expected_theta = 0.0
+        else:
+            # Ángulo medido desde el eje Y (baseline) hacia la dirección de llegada
+            # Si tu baseline es vertical (eje Y), cos(theta) = dy / r_xy
+            expected_theta = np.rad2deg(np.arccos(dy / r_xy))
+
+        expected_theta = np.abs(180 - np.round(expected_theta, 3))
+        """
+        print(f"Distancia total: {np.sqrt((source_x - arr_center_x)**2 + (source_y - arr_center_y)**2 + (source_z - arr_center_z)**2)}")
+        print(f"Diferencia eje X: {abs(source_x - arr_center_x)}")
+        print(f"Diferencia eje Y: {abs(source_y - arr_center_y)}")
+        
+        theta_exp_rad = np.deg2rad(expected_theta)
+        tau01_theo = (d * np.cos(theta_exp_rad)) / c
+        print(f"τ teórico (mic0→mic1): {tau01_theo}")
+
 
         # --- Simulación ---
         room = auf.simulate(sim_conf_name)
@@ -183,7 +211,7 @@ def process_simulation_data(*sim_configs, c=343):
 sim_names = []
 
 for i in range(1):
-    mod_dict = {"var":"room", "param":"t60", "value":(0.4+i*0.15)}
+    mod_dict = {"var":"room", "param":"t60", "value":(0.2+i*0.15)}
     #mod_dict = {"var":"room", "param":"dim", "value":[7,8, 3]}
     #mod_dict = {"var":"mic_array", "param":"position", "value":[3,3, 1.5]}
     sim_name = f"prueba t60-{0.4+i*0.15}"
