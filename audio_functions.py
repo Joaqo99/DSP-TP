@@ -481,66 +481,68 @@ def gen_simulation_dict(name, *mods_dict, audio_filename="audios_anecoicos/delta
 
 
 def simulate(sim_config_name):
-    #1) Levantamos los datos de la configuración de simulación
-    with open(f"simulaciones/{sim_config_name}", "r") as f:
-        sim_config = json.load(f)
+    try:
+        # 1) Levantamos los datos de la configuración de simulación
+        with open(f"simulaciones/{sim_config_name}", "r") as f:
+            sim_config = json.load(f)
 
+        # 2) Generar room con pyroom
+        room_dim = sim_config["room"]["dim"]
+        rt60 = sim_config["room"]["t60"]
 
-    #2) generar room con pyroom
-    room_dim = sim_config["room"]["dim"]
-    rt60 = sim_config["room"]["t60"]
+        room_dim_x, room_dim_y, room_dim_z = room_dim 
+        eabs, _ = pra.inverse_sabine(rt60, room_dim)
 
-    room_dim_x, room_dim_y, room_dim_z, = room_dim 
+        fs = sim_config["source"]["fs"]
+        snr = sim_config["room"]["snr"]
+        reflex_order = sim_config["room"]["reflex_order"]
 
-    eabs, _ = pra.inverse_sabine(rt60, room_dim)
+        temperature = 20
+        humidity = 40
 
-    fs = sim_config["source"]["fs"]
-    snr = sim_config["room"]["snr"]
-    reflex_order = sim_config["room"]["reflex_order"]
+        room = pra.ShoeBox(
+            room_dim, fs=fs, max_order=reflex_order,
+            materials=pra.Material(eabs),
+            temperature=temperature, humidity=humidity,
+            air_absorption=True
+        )
 
-    temperature = 20
-    humidity = 40
+        # 3) Coloco micrófonos
+        d_mic = sim_config["mic_array"]["d"]
+        n_mic = sim_config["mic_array"]["n"]
+        mic_array_pos = sim_config["mic_array"]["position"]
 
-    room = pra.ShoeBox(room_dim, fs=fs, max_order=reflex_order, materials=pra.Material(eabs), temperature=temperature, humidity=humidity, air_absorption=True)
+        mics_pos = []
 
-    #3) coloco micrófonos
-    d_mic = sim_config["mic_array"]["d"]
-    n_mic = sim_config["mic_array"]["n"]
-    mic_array_pos = sim_config["mic_array"]["position"]
+        x, y, z = mic_array_pos
+        if y > room_dim_y or y < 0:
+            raise ValueError(f"Mic array out of Y bounds en {sim_config_name}")
+        elif z > room_dim_z or z < 0:
+            raise ValueError(f"Mic array out of Z bounds en {sim_config_name}")
 
+        for n in range(n_mic):
+            new_x = x - d_mic * n
+            if new_x < 0 or new_x > room_dim_x:
+                raise ValueError(f"Mic array out of X bounds en {sim_config_name}")
+            loc = [new_x, y, z]
+            mics_pos.append(loc)
 
-    mics_pos = []
+        mic_array_loc = np.c_[*mics_pos]
+        room.add_microphone_array(mic_array_loc)
 
-    x, y, z = mic_array_pos
-    if y > room_dim_y or y < 0:
-        raise ValueError(f"El array de micrófonos se va de los límites de la sala en eje y. Por favor indique una nueva posición de array o distancia entre micrófonos, considerando que el argumento de la función es corresponde a la posición del primer micrófono")
-    elif z > room_dim_z or z < 0:
-        raise ValueError(f"El array de micrófonos se va de los límites de la sala en eje z. Por favor indique una nueva posición de array o distancia entre micrófonos, considerando que el argumento de la función es corresponde a la posición del primer micrófono")
-    
-    for n in range(n_mic):
+        # 4) Coloco fuente
+        source_pos = sim_config["source"]["position"]
+        audio_filename = sim_config["source"]["audio_filename"]
+        audio, _ = load_audio(audio_filename)
+        room.add_source(source_pos, signal=audio)
 
-        new_x = x - d_mic*n
+        # 5) Simulo
+        room.simulate(snr=snr)
+        return room
 
-        if new_x < 0 or (new_x > room_dim_x):
-            raise ValueError(f"El array de micrófonos se va de los límites de la sala en eje x. Por favor indique una nueva posición de array o distancia entre micrófonos, considerando que el argumento de la función es corresponde a la posición del primer micrófono")
-        
-        loc = [x - d_mic*n, y, z]
-        mics_pos.append(loc)
-
-    mic_array_loc = np.c_[*mics_pos]
-    room.add_microphone_array(mic_array_loc)
-
-
-    #4) coloco fuente
-    source_pos = sim_config["source"]["position"]
-    audio_filename = sim_config["source"]["audio_filename"]
-    audio, _ = load_audio(audio_filename)
-    room.add_source(source_pos, signal=audio)
-    
-
-    #5) realizo simulación
-    room.simulate(snr=snr)
-    return room
+    except Exception as e:
+        print(f"Falló la simulación '{sim_config_name}': {e}")
+        return None
 
 
 def process_simulation_data(*sim_configs, c=343, df_values=False):
@@ -601,10 +603,10 @@ def process_simulation_data(*sim_configs, c=343, df_values=False):
 
                 row = {
                     "sim_name": sim_conf_name,
-                    "expected_theta": expected_theta,
                     "method": method,
+                    "expected_theta": expected_theta,
                     "theta_prom": round(theta_prom, 3),
-                    "error": round(error, 4),
+                    "error": round(error, 5),
                     "est_theta_list": est_theta_list
                 }
 

@@ -1,0 +1,32 @@
+{
+    "name": "sim_T0.20s_d0.3_s[6.0,0.0,1.0]_m[5.0,5.0,1.0]",
+    "room": {
+        "dim": [
+            10,
+            10,
+            3
+        ],
+        "t60": 0.2,
+        "snr": 40,
+        "reflex_order": 100
+    },
+    "source": {
+        "position": [
+            5,
+            5,
+            1
+        ],
+        "audio_filename": "audios_anecoicos/delta.wav",
+        "fs": 48000
+    },
+    "mic_array": {
+        "n": 4,
+        "d": 0.325,
+        "pol_pat": "omni",
+        "position": [
+            6,
+            0,
+            1
+        ]
+    }
+}
