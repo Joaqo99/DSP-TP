@@ -85,7 +85,6 @@ methods = ["Classic", "ROTH", "PHAT", "SCOT", "ECKART", "HT"]
 def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
     sos_filter = filters.anti_alias_filter(c, d, fs, order=1)
     mic_signals_list = [signal.sosfilt(sos_filter, x) for x in mic_signals_list]
-    print(f"Calculo angulos por método: {method} \n")
     tau_matrix = []
     theta_matrix = []
     for i in range(len(mic_signals_list)):
@@ -99,7 +98,6 @@ def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
                 tau = get_tau(mic_signals_list[i], mic_signals_list[j], d_mics, fs=fs, mode=method, A = 5)
                 theta = get_direction(d_mics, tau, c=c)
                 mic_theta_list.append(theta)
-                print(f"Theta de {j}-{i}: {np.round(theta, 3)}")
             else:
                 mic_theta_list.append(None)  # o np.nan si preferís
             
@@ -120,7 +118,6 @@ def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
     # promedio ya sin nan ni ceros
     theta_prom = np.mean(theta_matrix_cleaned)
 
-    print(f"\nTheta matrix {method}: \n {theta_matrix}\n")
     return theta_prom, theta_matrix
 
 def process_simulation_data(*sim_configs, c=343):
@@ -153,45 +150,19 @@ def process_simulation_data(*sim_configs, c=343):
         fs = sim_conf["source"]["fs"]
 
         # Centrar el array
-        arr_center_x, arr_center_y, arr_center_z = array_pos
-        arr_center_y += (d * n) / 2
+        poss_mic_x, poss_mic_y, poss_mic_z = array_pos
+        arr_center_x = poss_mic_x + (d * n) / 2
         source_x, source_y, source_z = source_pos
 
+        
         # ----------Ángulo esperado en grados-----------
-        
-        expected_theta = np.arccos(np.abs(source_x - arr_center_x) / np.sqrt(
-            (source_x - arr_center_x)**2 + (source_y - arr_center_y)**2 
-        ))                                                        #        + (source_z - arr_center_z)**2
-        expected_theta = np.round(np.rad2deg(expected_theta), 3)
-        
-        """
-        
-        #  OTRO METODO
 
-        dx = source_x - arr_center_x
-        dy = source_y - arr_center_y
-
-        # Distancia en el plano XY
-        r_xy = np.hypot(dx, dy)
-        if r_xy == 0:
-            expected_theta = 0.0
-        else:
-            # Ángulo medido desde el eje Y (baseline) hacia la dirección de llegada
-            # Si tu baseline es vertical (eje Y), cos(theta) = dy / r_xy
-            expected_theta = np.rad2deg(np.arccos(dy / r_xy))
-        expected_theta = np.abs(180 - np.round(expected_theta, 3))
-        """
-
-
-        print(f"SIMULACION: {sim_conf_name}")
-        print(f"Expected theta: {np.round(expected_theta,2)}")
-        print(f"Distancia total: {np.round(np.sqrt((source_x - arr_center_x)**2 + (source_y - arr_center_y)**2 + (source_z - arr_center_z)**2),2)}")
-        print(f"Diferencia eje X: {np.round(abs(source_x - arr_center_x),2)}")
-        print(f"Diferencia eje Y: {np.round(abs(source_y - arr_center_y),2)}")
+        expected_theta = np.arccos(np.abs((source_x - arr_center_x)) / 
+                    (np.sqrt((source_x - arr_center_x)**2 + (source_y - poss_mic_y)**2 + (source_z - poss_mic_z)**2)))
+        expected_theta = np.round(np.rad2deg(expected_theta), 3)   
+        if source_x < poss_mic_x:
+           expected_theta = 180 - expected_theta
         
-        theta_exp_rad = np.deg2rad(expected_theta)
-        tau01_theo = (d * np.cos(theta_exp_rad)) / c
-        print(f"τ teórico (mic0→mic1): {np.round(tau01_theo,8)}")
 
 
         # --- Simulación ---
@@ -214,7 +185,6 @@ def process_simulation_data(*sim_configs, c=343):
 
 
     return pd.DataFrame(rows)
-
 
 sim_names = []
 
@@ -254,32 +224,20 @@ def generate_batch_simulations(base_name, t60, n_config=100):
         time.sleep(0.01)
     return sim_names
 
-t60_list = [0.2, 0.4, 0.6, 0.8]
-"""
-# 1) Generar todos los nombres de simulaciones
-t60_list = [0.2, 0.4, 0.6, 0.8]
-all_sim_names = []
-for t60 in t60_list:
-    sim_names = generate_batch_simulations("batch", t60, n_config=100)
-    all_sim_names.extend(sim_names)
 
-# 2) Procesar TODAS las simulaciones de una vez
-df = process_simulation_data(*all_sim_names)
 
-# 3) Guardar y mostrar el resultado final solo una vez
-df.to_csv("resultados_batch.csv", index=False)
-print(df)
-"""
+t60_list = [0.2, 0.4, 0.6, 0.8]
+
 all_dfs = []
 for t60 in t60_list:
-    sim_names = generate_batch_simulations("sim", t60, n_config=5)
+    sim_names = generate_batch_simulations("sim", t60, n_config = 5)
     df_t60 = process_simulation_data(*sim_names)
     df_t60["t60"] = t60
     all_dfs.append(df_t60)
     print(f"--- Resultados para T60 = {t60} ---")
     print(df_t60)
 
-# Y si quieres un solo DataFrame final con todo:
+
 df_all = pd.concat(all_dfs, ignore_index=True)
 df_all.to_csv("resultados_todos.csv", index=False)
 

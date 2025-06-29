@@ -124,50 +124,10 @@ def get_direction(d, tau, c=343, fs =44100):
 
 methods = ["Classic", "ROTH", "PHAT", "SCOT", "ECKART", "HT"]
 
-def doa_system_old(mic_signals_list, d, fs, c=343, method="Classic"):
-    sos_filter = filters.anti_alias_filter(c, d, fs, order=1)
-    mic_signals_list = [signal.sosfilt(sos_filter, x) for x in mic_signals_list]
-
-    tau_matrix = []
-    theta_matrix = []
-    for mic_num_1, mic_signal_1 in enumerate(mic_signals_list):
-        for mic_num_2, mic_signal_2 in enumerate(mic_signals_list):
-            mic_tau_list = []
-            mic_theta_list = []
-
-            if mic_num_1 == mic_num_2:
-                mic_tau_list.append(0.0)
-                mic_theta_list.append(0.0)
-            else:
-                #d_mics = d*((mic_num_i)-mic_num_1)
-                delta = mic_num_2 - mic_num_1
-                
-                d_mics = abs(delta) * d
-                #print("D_mics: ", d_mics)
-                
-                tau = get_tau_OLD(mic_signal_1, mic_signal_2, d_mics, mode=method)
-
-                mic_tau_list.append(tau)
-                theta = get_direction(d_mics, tau, c=c, fs=fs)
-                mic_theta_list.append(theta)
-                print(f"Theta de {mic_num_2}-{mic_num_1}: {np.round(theta, 3)}")
-        
-        tau_matrix.append(mic_tau_list)
-        theta_matrix.append(mic_theta_list)
-
-    tau_matrix = np.array(tau_matrix)
-    theta_matrix = np.array(theta_matrix)
-    theta_matrix = np.round(theta_matrix, 2)
-    theta_matrix_flattened = theta_matrix.flatten()
-    theta_matrix_cleaned = np.delete(theta_matrix_flattened, np.where(theta_matrix_flattened == 0.0))
-    theta_prom = np.mean(theta_matrix_cleaned)
-
-    return theta_prom, theta_matrix, print(f"PLANO: {theta_matrix_flattened}")
 
 def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
     sos_filter = filters.anti_alias_filter(c, d, fs, order=1)
     mic_signals_list = [signal.sosfilt(sos_filter, x) for x in mic_signals_list]
-    print(f"\nCalculo angulos por método: {method}")
     tau_matrix = []
     theta_matrix = []
     for i in range(len(mic_signals_list)):
@@ -181,7 +141,6 @@ def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
                 tau = get_tau(mic_signals_list[i], mic_signals_list[j], d_mics, fs=fs, mode=method, A = 5)
                 theta = get_direction(d_mics, tau, c=c)
                 mic_theta_list.append(theta)
-                print(f"Theta de {j}-{i}: {np.round(theta, 3)}")
             else:
                 mic_theta_list.append(None)  # o np.nan si preferís
             
@@ -202,7 +161,6 @@ def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
     # promedio ya sin nan ni ceros
     theta_prom = np.mean(theta_matrix_cleaned)
 
-    print(f"\nTheta matrix {method}: \n {theta_matrix}\n")
     return theta_prom, theta_matrix
 
 
@@ -236,45 +194,20 @@ def process_simulation_data(*sim_configs, c=343):
         fs = sim_conf["source"]["fs"]
 
         # Centrar el array
-        poss_mic_x, arr_center_y, arr_center_z = array_pos
-        print(f"array central {poss_mic_x}")
-        arr_center = poss_mic_x + (d * n) / 2
+        poss_mic_x, poss_mic_y, poss_mic_z = array_pos
+        arr_center_x = poss_mic_x + (d * n) / 2
         source_x, source_y, source_z = source_pos
 
         
         # ----------Ángulo esperado en grados-----------
 
-        expected_theta = np.arccos(np.abs(source_x - poss_mic_x) / np.sqrt((source_x - poss_mic_x)**2 + (source_y - arr_center_y)**2))
-        expected_theta = np.round(np.rad2deg(expected_theta), 3)
+        expected_theta = np.arccos(np.abs((source_x - arr_center_x)) / 
+                    (np.sqrt((source_x - arr_center_x)**2 + (source_y - poss_mic_y)**2 + (source_z - poss_mic_z)**2)))
+        expected_theta = np.round(np.rad2deg(expected_theta), 3)   
+        if source_x < poss_mic_x:
+           expected_theta = 180 - expected_theta
         
-
-        """
         
-        #  OTRO METODO
-        expected_theta = np.arccos(np.abs(source_x - arr_center_x) / np.sqrt(
-            (source_x - arr_center_x)**2 + (source_y - arr_center_y)**2 )) #        + (source_z - arr_center_z)**2
-                                                               
-        expected_theta = np.round(np.rad2deg(expected_theta), 3)
-        ------------------------------------
-
-                expected_theta = np.rad2deg(np.arctan2((source_y - arr_center_y), (source_x - poss_mic_x)))
- 
-        if expected_theta < 0:
-            expected_theta += 360
-
-        expected_theta = np.round(expected_theta, 3)
-        """
-
-
-        print(f"SIMULACION: {sim_conf_name}")
-        print(f"Expected theta: {np.round(expected_theta,2)}")
-        print(f"Distancia total: {np.round(np.sqrt((source_x - arr_center)**2 + (source_y - arr_center_y)**2 + (source_z - arr_center_z)**2),2)}")
-        print(f"Diferencia eje X: {np.round(abs(source_x - poss_mic_x),2)}")
-        print(f"Diferencia eje Y: {np.round(abs(source_y - arr_center_y),2)}")
-        
-        theta_exp_rad = np.deg2rad(expected_theta)
-        tau01_theo = (d * np.cos(theta_exp_rad)) / c
-        print(f"τ teórico (mic0→mic1): {np.round(tau01_theo,8)}")
 
 
         # --- Simulación ---
@@ -303,8 +236,8 @@ sim_names = []
 
 for i in range(1):
     mod_dict_t60 =      {"var":"room", "param":"t60", "value":(0.4+i*0.15)}
-    mod_dict_array =    {"var":"mic_array", "param":"position","value":[5, 3, 1]}
-    mod_dict_source =   {"var":"source", "param":"position","value":[7, 3, 1]}
+    mod_dict_array =    {"var":"mic_array", "param":"position","value":[5, 2, 1]}
+    mod_dict_source =   {"var":"source", "param":"position","value":[2, 1, 1]}
     mod_dict_room =     {"var":"room", "param":"dim", "value":[10, 10, 10]}
 
     sim_name = f"prueba t60-{0.4+i*0.15}"
