@@ -557,15 +557,20 @@ def process_simulation_data(*sim_configs, c=343, df_values=False):
         n = sim_conf["mic_array"]["n"]
         fs = sim_conf["source"]["fs"]
 
-        # Ángulo esperado
-        arr_center_x, arr_center_y, arr_center_z = array_pos
-        arr_center_y += (d * n) / 2
+        # Centrar el array
+        poss_mic_x, poss_mic_y, poss_mic_z = array_pos
+        arr_center_x = poss_mic_x + (d * n) / 2
         source_x, source_y, source_z = source_pos
 
-        expected_theta = np.arccos(np.abs(source_x - arr_center_x) / np.sqrt(
-            (source_x - arr_center_x)**2 + (source_y - arr_center_y)**2 + (source_z - arr_center_z)**2
-        ))
-        expected_theta = np.round(np.rad2deg(expected_theta), 3)
+        
+        # ----------Ángulo esperado en grados-----------
+
+        expected_theta = np.arccos(np.abs((source_x - arr_center_x)) / 
+                    (np.sqrt((source_x - arr_center_x)**2 + (source_y - poss_mic_y)**2 + (source_z - poss_mic_z)**2)))
+        expected_theta = np.round(np.rad2deg(expected_theta), 3)   
+        if source_x < poss_mic_x:
+           expected_theta = 180 - expected_theta
+        
 
         # Simulación
         room = simulate(sim_conf_name)

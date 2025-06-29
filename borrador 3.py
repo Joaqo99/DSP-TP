@@ -6,6 +6,7 @@ from scipy import signal
 import pandas as pd
 import json
 import time
+import pandas as pd
 
 def get_tau_V2(mic_1, mic_2, max_tau, mode="Classic"):
     """
@@ -188,7 +189,7 @@ def process_simulation_data(*sim_configs, c=343):
 
 sim_names = []
 
-def generate_batch_simulations(base_name, t60, n_config=100):
+def generate_batch_simulations_OLD(base_name, t60, n_config=100):
     sim_names = []
     # Valores fijos de sala (tú puedes variarlos también si quieres)
     dim = [5, 5, 2]
@@ -224,13 +225,76 @@ def generate_batch_simulations(base_name, t60, n_config=100):
         time.sleep(0.01)
     return sim_names
 
+def generate_batch_simulations(base_name, t60):
+
+
+    # 1) Definí listas de valores
+    t60_list      = np.linspace(0.2, 0.8, 2)    #10
+    dmic_list     = np.linspace(0.05, 0.5, 2)  #10
+    source_x_list = np.linspace(0, 10, 1)       #5
+    source_y_list = np.linspace(0, 10, 1)       #5
+    source_z_list = np.linspace(0.5, 2.5, 1)    #5
+    mic_x_list    = np.linspace(3, 10, 1)       #5
+    mic_y_list    = np.linspace(0, 10, 1)       #5
+    mic_z_list    = np.linspace(0.5, 2.5, 1)    #5
+
+    all_dfs = []
+
+    # 2) Iterá sobre el producto cartesiano de parámetros
+    for t60 in t60_list:
+        for d in dmic_list:
+            for sx in source_x_list:
+                for sy in source_y_list:
+                    for sz in source_z_list:
+                        for mx in mic_x_list:
+                            for my in mic_y_list:
+                                for mz in mic_z_list:
+                                    # 3) Generá un nombre único
+                                    sim_name = f"sim_T60{t60:.2f}_d{d:.2f}_sx{sx:.1f}_sy{sy:.1f}_sz{sz:.1f}_mx{mx:.1f}_my{my:.1f}_mz{mz:.1f}"
+
+                                    # 4) Armá los dicts de modificación
+                                    mods = [
+                                        {"var":"room",      "param":"t60",      "value": float(t60)},
+                                        {"var":"mic_array", "param":"d",        "value": float(d)},
+                                        {"var":"mic_array", "param":"position", "value":[mx, my, mz]},
+                                        {"var":"source",    "param":"position", "value":[sx, sy, sz]},
+                                        # podrías también incluir room.dim o reflex_order si querés barrerlos
+                                    ]
+
+                                    # 5) Guardá el JSON de configuración
+                                    auf.gen_simulation_dict(sim_name, *mods)
+
+                                    # 6) Ejecutá la simulación y procesá datos
+                                    #    (podría ser más eficiente acumular en listas y luego llamar a
+                                    #     process_simulation_data en batch, pero aquí lo hacemo uno a uno)
+                                    df = auf.process_simulation_data(sim_name)
+                                    df["t60"]      = t60
+                                    df["d"]        = d
+                                    df["src_x"]    = sx
+                                    df["src_y"]    = sy
+                                    df["src_z"]    = sz
+                                    df["mic_x"]    = mx
+                                    df["mic_y"]    = my
+                                    df["mic_z"]    = mz
+
+                                    all_dfs.append(df)
+
+                                    # 7) Pequeña pausa para no sobrecargar disco/IO
+                                    time.sleep(0.01)
+
+    # 8) Concatenar todo
+    df_all = pd.concat(all_dfs, ignore_index=True)
+
+    # 9) Guardar resultados
+    df_all.to_csv("resultados_parametricos.csv", index=False)
+    print("Listo! resultados en resultados_parametricos.csv")
 
 
 t60_list = [0.2, 0.4, 0.6, 0.8]
 
 all_dfs = []
 for t60 in t60_list:
-    sim_names = generate_batch_simulations("sim", t60, n_config = 5)
+    sim_names = generate_batch_simulations("sim", t60)
     df_t60 = process_simulation_data(*sim_names)
     df_t60["t60"] = t60
     all_dfs.append(df_t60)
