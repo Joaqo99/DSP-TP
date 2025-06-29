@@ -418,6 +418,17 @@ def apply_noise(mic_signals, fs=48000, A_noise = 0.1, duration=0.1):
       
     return mic_signals_rir
 
+def angle_error(angle_true, angle_pred):
+    """
+    Performs a mean squared error between true angle of arrival and predicted angle of arrival. Angles must be both in degrees.
+    """
+
+    angle_true = np.deg2rad(angle_true)
+    angle_pred = np.deg2rad(angle_pred)
+    delta_angle = (angle_true - angle_pred + np.pi)%(2*np.pi) - np.pi
+    mse = delta_angle**2/np.pi**2
+    return mse
+
 def gen_simulation_dict(name, *mods_dict, audio_filename="audios_anecoicos/delta.wav"):
     """
     Generates a dictionary with particular simulation conditions.
@@ -586,7 +597,7 @@ def process_simulation_data(*sim_configs, c=343, df_values=False):
                 est_theta_list = [np.round(x, 2) for x in est_theta_list]
 
                 theta_prom = np.mean(est_theta_list[1:])
-                error = np.mean((expected_theta - theta_prom) ** 2)
+                error = angle_error(expected_theta, theta_prom)
 
                 row = {
                     "sim_name": sim_conf_name,

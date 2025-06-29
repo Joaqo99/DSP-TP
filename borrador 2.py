@@ -218,7 +218,7 @@ def process_simulation_data(*sim_configs, c=343):
 
         for m in methods:
             theta_prom, theta_matrix = doa_system(mic_signals, d, fs, method=m)
-            error = np.mean((expected_theta - theta_prom) ** 2)
+            error = auf.angle_error(expected_theta, theta_prom)
             rows.append({
                 "sim_name": sim_conf_name,
                 "expected_theta": expected_theta,
