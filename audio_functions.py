@@ -532,7 +532,7 @@ def simulate(sim_config_name):
     return room
 
 
-def process_simulation_data(*sim_configs, c=343):
+def process_simulation_data(*sim_configs, c=343, df_values=False):
     """
     Procesa múltiples simulaciones. Devuelve un DataFrame en formato largo con:
     - expected_theta
@@ -541,68 +541,69 @@ def process_simulation_data(*sim_configs, c=343):
     - error cuadrático medio (error)
     - lista de ángulos estimados (est_theta_list)
 
-    Cada fila del DataFrame representa una simulación y un método.
+    Si df_values es una lista como ["room.snr", "mic_array.d"], también incluye esos valores con ese nombre de columna.
     """
-
-    methods = ["Classic", "ROTH", "PHAT", "SCOT", "ECKART", "HT"]  # Reemplazá por los métodos que estés usando
-
-
+    methods = ["Classic", "ROTH", "PHAT", "SCOT", "ECKART", "HT"]
     rows = []
 
     for sim_conf_name in sim_configs:
-        # --- Cargar configuración de simulación ---
         with open(f"simulaciones/{sim_conf_name}", "r") as f:
             sim_conf = json.load(f)
 
-        # --- Parámetros básicos ---
+        # Datos base
         source_pos = sim_conf["source"]["position"]
-        array_pos = sim_conf["mic_array"]["position"]  # referencia del array
+        array_pos = sim_conf["mic_array"]["position"]
         d = sim_conf["mic_array"]["d"]
         n = sim_conf["mic_array"]["n"]
         fs = sim_conf["source"]["fs"]
 
-        # Centrar el array
+        # Ángulo esperado
         arr_center_x, arr_center_y, arr_center_z = array_pos
         arr_center_y += (d * n) / 2
         source_x, source_y, source_z = source_pos
 
-        # Ángulo esperado en grados
         expected_theta = np.arccos(np.abs(source_x - arr_center_x) / np.sqrt(
             (source_x - arr_center_x)**2 + (source_y - arr_center_y)**2 + (source_z - arr_center_z)**2
         ))
         expected_theta = np.round(np.rad2deg(expected_theta), 3)
 
-        # --- Simulación ---
+        # Simulación
         room = simulate(sim_conf_name)
         mic_signals = room.mic_array.signals
 
-        #Filtrado de la señal para evitar aliasing espacial
         sos_filter = filters.anti_alias_filter(c, d, fs, order=1)
         mic_signals = [signal.sosfilt(sos_filter, x) for x in mic_signals]
+
         for method in methods:
             try:
-                # Estimación de dirección
                 tau_list = get_taus_n_mic(mic_signals, fs, mode=method)
-                print(tau_list)
                 est_theta_list = get_direction_n_signals(d, tau_list, c, fs)
-                est_theta_list = [np.round(x, 2) for x in est_theta_list]  # a grados
-                print(est_theta_list)
-                #est_theta_list = [x for x in est_theta_list if not np.isnan(x)]
-                # Promedio sin micrófono de referencia
+                est_theta_list = [np.round(x, 2) for x in est_theta_list]
+
                 theta_prom = np.mean(est_theta_list[1:])
                 error = np.mean((expected_theta - theta_prom) ** 2)
 
-                rows.append({
+                row = {
                     "sim_name": sim_conf_name,
                     "expected_theta": expected_theta,
                     "method": method,
                     "theta_prom": round(theta_prom, 3),
                     "error": round(error, 4),
                     "est_theta_list": est_theta_list
-                })
+                }
+
+                # Agregar valores extras con nombres como "mic_array.d"
+                if isinstance(df_values, list):
+                    for full_key in df_values:
+                        if '.' in full_key:
+                            section, key = full_key.split('.', 1)
+                            value = sim_conf.get(section, {}).get(key, None)
+                            row[full_key] = value
+
+                rows.append(row)
+
             except Exception as e:
                 print(f"Error en {sim_conf_name} con método {method}: {e}")
                 continue
 
     return pd.DataFrame(rows)
-        
