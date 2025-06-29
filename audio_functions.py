@@ -189,8 +189,6 @@ def moving_media_filter(in_signal, N):
     ir = np.ones(N) * 1 / N
     return conv(in_signal, ir)
 
-
-
 def load_audio(file_name):
     """
     Loads a mono or stereo audio file in audios folder.
@@ -481,6 +479,8 @@ def simulate(sim_config_name):
     room_dim = sim_config["room"]["dim"]
     rt60 = sim_config["room"]["t60"]
 
+    room_dim_x, room_dim_y, room_dim_z, = room_dim 
+
     eabs, _ = pra.inverse_sabine(rt60, room_dim)
 
     fs = sim_config["source"]["fs"]
@@ -500,9 +500,20 @@ def simulate(sim_config_name):
 
     mics_pos = []
 
+    x, y, z = mic_array_pos
+    if y > room_dim_y or y < 0:
+        raise ValueError(f"El array de micrófonos se va de los límites de la sala en eje y. Por favor indique una nueva posición de array o distancia entre micrófonos, considerando que el argumento de la función es corresponde a la posición del primer micrófono")
+    elif z > room_dim_z or z < 0:
+        raise ValueError(f"El array de micrófonos se va de los límites de la sala en eje z. Por favor indique una nueva posición de array o distancia entre micrófonos, considerando que el argumento de la función es corresponde a la posición del primer micrófono")
+    
     for n in range(n_mic):
-        x, y, z = mic_array_pos
-        loc = [x, y + d_mic*n, z]
+
+        new_x = x - d_mic*n
+
+        if new_x < 0 or (new_x > room_dim_x):
+            raise ValueError(f"El array de micrófonos se va de los límites de la sala en eje x. Por favor indique una nueva posición de array o distancia entre micrófonos, considerando que el argumento de la función es corresponde a la posición del primer micrófono")
+        
+        loc = [x - d_mic*n, y, z]
         mics_pos.append(loc)
 
     mic_array_loc = np.c_[*mics_pos]
