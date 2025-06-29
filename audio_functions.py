@@ -480,7 +480,7 @@ def gen_simulation_dict(name, *mods_dict, audio_filename="audios_anecoicos/delta
 
 
 
-def simulate(sim_config_name):
+def simulate(sim_config_name, anechoich=False):
     try:
         # 1) Levantamos los datos de la configuración de simulación
         with open(f"simulaciones/{sim_config_name}", "r") as f:
@@ -500,12 +500,16 @@ def simulate(sim_config_name):
         temperature = 20
         humidity = 40
 
-        room = pra.ShoeBox(
-            room_dim, fs=fs, max_order=reflex_order,
-            materials=pra.Material(eabs),
-            temperature=temperature, humidity=humidity,
-            air_absorption=True
-        )
+
+        if anechoich:
+            room = pra.AnechoicRoom(dim=3, fs=fs, air_absorption=True, temperature=temperature, humidity=humidity)
+        else:
+            room = pra.ShoeBox(
+                room_dim, fs=fs, max_order=reflex_order,
+                materials=pra.Material(eabs),
+                temperature=temperature, humidity=humidity,
+                air_absorption=True
+            )
 
         # 3) Coloco micrófonos
         d_mic = sim_config["mic_array"]["d"]
@@ -515,17 +519,23 @@ def simulate(sim_config_name):
         mics_pos = []
 
         x, y, z = mic_array_pos
-        if y > room_dim_y or y < 0:
-            raise ValueError(f"Mic array out of Y bounds en {sim_config_name}")
-        elif z > room_dim_z or z < 0:
-            raise ValueError(f"Mic array out of Z bounds en {sim_config_name}")
+        if anechoich:
+            for n in range(n_mic):
+                new_x = x - d_mic * n
+                loc = [new_x, y, z]
+                mics_pos.append(loc)
+        else:
+            if y > room_dim_y or y < 0:
+                raise ValueError(f"Mic array out of Y bounds en {sim_config_name}")
+            elif z > room_dim_z or z < 0:
+                raise ValueError(f"Mic array out of Z bounds en {sim_config_name}")
 
-        for n in range(n_mic):
-            new_x = x - d_mic * n
-            if new_x < 0 or new_x > room_dim_x:
-                raise ValueError(f"Mic array out of X bounds en {sim_config_name}")
-            loc = [new_x, y, z]
-            mics_pos.append(loc)
+            for n in range(n_mic):
+                new_x = x - d_mic * n
+                if new_x < 0 or new_x > room_dim_x:
+                    raise ValueError(f"Mic array out of X bounds en {sim_config_name}")
+                loc = [new_x, y, z]
+                mics_pos.append(loc)
 
         mic_array_loc = np.c_[*mics_pos]
         room.add_microphone_array(mic_array_loc)
@@ -542,10 +552,10 @@ def simulate(sim_config_name):
 
     except Exception as e:
         print(f"Falló la simulación '{sim_config_name}': {e}")
-        return None
+        return False
 
 
-def process_simulation_data(*sim_configs, c=343, df_values=False):
+def process_simulation_data(*sim_configs, c=343, df_values=False, anechoich=False):
     """
     Procesa múltiples simulaciones. Devuelve un DataFrame en formato largo con:
     - expected_theta
@@ -555,6 +565,7 @@ def process_simulation_data(*sim_configs, c=343, df_values=False):
     - lista de ángulos estimados (est_theta_list)
 
     Si df_values es una lista como ["room.snr", "mic_array.d"], también incluye esos valores con ese nombre de columna.
+    Para agregar la distancia entre la fuente y el array pedir "mic-source distance".
     """
     methods = ["Classic", "ROTH", "PHAT", "SCOT", "ECKART", "HT"]
     rows = []
@@ -575,20 +586,26 @@ def process_simulation_data(*sim_configs, c=343, df_values=False):
         arr_center_x = poss_mic_x + (d * n) / 2
         source_x, source_y, source_z = source_pos
 
+        d_mic_source =  np.sqrt((source_x - arr_center_x)**2 + (source_y - poss_mic_y)**2 + (source_z - poss_mic_z)**2)
         
         # ----------Ángulo esperado en grados-----------
 
-        expected_theta = np.arccos(np.abs((source_x - arr_center_x)) / 
-                    (np.sqrt((source_x - arr_center_x)**2 + (source_y - poss_mic_y)**2 + (source_z - poss_mic_z)**2)))
+        expected_theta = np.arccos(np.abs((source_x - arr_center_x)) / d_mic_source)
         expected_theta = np.round(np.rad2deg(expected_theta), 3)   
         if source_x < poss_mic_x:
            expected_theta = 180 - expected_theta
         
 
-        # Simulación
-        room = simulate(sim_conf_name)
-        mic_signals = room.mic_array.signals
 
+
+        # Simulación
+        room = simulate(sim_conf_name, anechoich=anechoich)
+        
+        if not room:
+            continue
+
+        mic_signals = room.mic_array.signals
+    
         sos_filter = filters.anti_alias_filter(c, d, fs, order=1)
         mic_signals = [signal.sosfilt(sos_filter, x) for x in mic_signals]
 
@@ -616,6 +633,9 @@ def process_simulation_data(*sim_configs, c=343, df_values=False):
                         if '.' in full_key:
                             section, key = full_key.split('.', 1)
                             value = sim_conf.get(section, {}).get(key, None)
+                            row[full_key] = value
+                        elif full_key == 'mic-source distance':
+                            value = d_mic_source
                             row[full_key] = value
 
                 rows.append(row)
