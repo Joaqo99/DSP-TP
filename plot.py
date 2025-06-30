@@ -436,7 +436,7 @@ def plot_bars_error(data, x, y, hue=None,  errorbar=None, rotation=False, xticks
         plt.figure(figsize=figsize)
 
     # Graficar
-    sns.barplot(data=data, x=x, y=y, hue=hue, errorbar=errorbar, palette="viridis")
+    sns.barplot(data=data, x=x, y=y, hue=hue, errorbar=errorbar, palette="hls")
 
     if x_label:
         plt.xlabel(x_label)
@@ -503,7 +503,7 @@ def plot_lines_error(data, x, y, hue=None, errorbar=None, marker=None, rotation=
         plt.figure(figsize=figsize)
 
     # Graficar
-    sns.lineplot(data=data, x=x, y=y, hue=hue, marker=marker, errorbar=errorbar, palette="viridis")
+    sns.lineplot(data=data, x=x, y=y, hue=hue, marker=marker, errorbar=errorbar, palette="hls")
 
     if x_label:
         plt.xlabel(x_label)
