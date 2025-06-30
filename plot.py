@@ -3,6 +3,7 @@ from matplotlib.ticker import MaxNLocator
 from scipy import signal
 import numpy as np
 import audio_functions as auf
+import seaborn as sns
 
 nominal_oct_central_freqs = [31.5, 63, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 160000]
 
@@ -424,3 +425,137 @@ def plot_room(fig=None, ax=None, xlim=0, ylim=0, zlim=0):
         ax.set_zlim([0,zlim])
         plt.show()
     return
+
+
+def plot_bars_error(data, x, y, hue=None,  errorbar=None, rotation=False, xticks=None, x_label=None, yticks=None, title=None, file_name=False, y_label=False, grid=False, log=False, figsize=False, show=True, xlimits = False, ylimits = False, legend=False):
+    """
+    Grafica una variable en función de la otra ambas dentro de un dataframe, en forma de barras.
+    """
+
+    if figsize:
+        plt.figure(figsize=figsize)
+
+    # Graficar
+    sns.barplot(data=data, x=x, y=y, hue=hue, errorbar=errorbar, palette="viridis")
+
+    if x_label:
+        plt.xlabel(x_label)
+
+    if y_label:
+        plt.ylabel(y_label)
+
+    if rotation:
+        plt.xticks(rotation=rotation)
+    else:
+        plt.xticks(rotation=0)
+
+    if type(yticks) == np.ndarray:
+        if type(yticks) != np.ndarray:            
+            raise Exception("ytick value must be an array")
+        
+        if not(ylimits):            
+            plt.ylim(np.min(yticks), np.max(yticks))
+
+        plt.yticks(yticks)
+
+    plt.grid(grid)
+    
+    if xlimits:
+        if type(xlimits) != tuple:
+            raise ValueError("Xlimits must be tuple type")
+        plt.xlim(xlimits)
+
+    if ylimits:
+        if type(ylimits) != tuple:
+            raise ValueError("Xlimits must be tuple type")
+        plt.ylim(ylimits)
+
+    if log:
+        plt.yscale("log")
+
+    plt.ylabel(f"{y_label}", fontsize=13)
+
+    if title:
+        plt.title(title, fontsize=15)
+
+    #save file
+    if file_name:
+        plt.savefig(f"../graficos/{file_name}.png")
+        #print(f"File saved in graficos/{file_name}.png")
+    
+    if legend:
+        plt.legend()
+
+    plt.tight_layout()
+
+    if show: 
+        plt.show()
+    else:
+        plt.ioff()
+
+
+
+def plot_lines_error(data, x, y, hue=None, errorbar=None, marker=None, rotation=False, xticks=None, x_label=None, yticks=None, title=None, file_name=False, y_label=False, grid=False, log=False, figsize=False, show=True, xlimits = False, ylimits = False, legend=False):
+    """
+    Grafica una variable en función de la otra ambas dentro de un dataframe, en forma de barras.
+    """
+    if figsize:
+        plt.figure(figsize=figsize)
+
+    # Graficar
+    sns.lineplot(data=data, x=x, y=y, hue=hue, marker=marker, errorbar=errorbar, palette="viridis")
+
+    if x_label:
+        plt.xlabel(x_label)
+
+    if y_label:
+        plt.ylabel(y_label)
+
+    if rotation:
+        plt.xticks(rotation=rotation)
+    else:
+        plt.xticks(rotation=0)
+
+    if type(yticks) == np.ndarray:
+        if type(yticks) != np.ndarray:            
+            raise Exception("ytick value must be an array")
+        
+        if not(ylimits):            
+            plt.ylim(np.min(yticks), np.max(yticks))
+
+        plt.yticks(yticks)
+
+    plt.grid(grid)
+    
+    if xlimits:
+        if type(xlimits) != tuple:
+            raise ValueError("Xlimits must be tuple type")
+        plt.xlim(xlimits)
+
+    if ylimits:
+        if type(ylimits) != tuple:
+            raise ValueError("Xlimits must be tuple type")
+        plt.ylim(ylimits)
+
+    if log:
+        plt.yscale("log")
+
+    plt.ylabel(f"{y_label}", fontsize=13)
+
+    if title:
+        plt.title(title, fontsize=15)
+
+    #save file
+    if file_name:
+        plt.savefig(f"../graficos/{file_name}.png")
+        #print(f"File saved in graficos/{file_name}.png")
+    
+    if legend:
+        plt.legend()
+
+    plt.tight_layout()
+
+    if show: 
+        plt.show()
+    else:
+        plt.ioff()

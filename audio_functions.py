@@ -121,26 +121,6 @@ def get_tau(mic_1, mic_2, d, fs=48000, c=343, mode="Classic"):
 
     return tau
 
-def get_taus_n_mic(mic_signals, d, fs=48000, mode="Classic"):
-    """
-    Calcula el tiempo de arribo relativo (TDOA) entre el primer micrófono y los demás.
-
-    Input:
-        - mic_signals: lista de arrays. Cada array es la señal de un micrófono.
-        - fs: frecuencia de muestreo
-
-    Output:
-        - taus: lista de retardos en segundos. El primer micrófono tiene retardo 0.
-    """
-    reference = mic_signals[0]
-    taus = [0.0]  # El micrófono de referencia tiene retardo 0
-
-    for i in range(1, len(mic_signals)):
-        tau = get_tau(reference, mic_signals[i], d=d, fs=fs, mode=mode)
-        taus.append(tau)
-    
-    return taus
-
 def get_direction(d, t, c=340, fs=48000):
     """
     Returns direction of arrival between 2 microphones
@@ -155,30 +135,6 @@ def get_direction(d, t, c=340, fs=48000):
     angle = np.arccos(arg)
     angle = np.rad2deg(angle)
     return angle
-
-def get_direction_n_signals(d,taus, c=343, fs=48000):
-    """
-    Calcula los ángulos estimados de llegada del sonido para múltiples micrófonos.
-    
-    Input:
-        - taus: list of float. Lista de retardos respecto al micrófono de referencia.
-        - d: float. Distancia entre micrófonos.
-        - c: float. Velocidad del sonido (por defecto 343 m/s).
-        - fs: int. Frecuencia de muestreo (por defecto 48000 Hz).
-    
-    Output:
-        - angles: list of float. Ángulos estimados en grados.
-    """    
-    angles = []
-    for i, tau in enumerate(taus):
-        if i == 0:
-            angles.append(0.0)  # Micrófono de referencia
-        else:
-            d_total = d * i
-            angle = get_direction(d_total, tau, c=c, fs=fs)
-            angles.append(angle)
-    return angles
-
 
 def conv(in_signal, ir):
     """Performs convolution"""
@@ -480,6 +436,47 @@ def gen_simulation_dict(name, *mods_dict, audio_filename="audios_anecoicos/delta
 
 
 
+def doa_system(mic_signals_list, d, fs, c=343, method="Classic"):
+    sos_filter = filters.anti_alias_filter(c, d, fs, order=1)
+    mic_signals_list = [signal.sosfilt(sos_filter, x) for x in mic_signals_list]
+    tau_matrix = []
+    theta_matrix = []
+    for i in range(len(mic_signals_list)):
+        mic_theta_list = []
+        for j in range(len(mic_signals_list)):
+            if i == j:
+                mic_theta_list.append(0.0)
+            elif j > i:
+                # solo calcular una vez por par
+                d_mics = abs(j - i) * d
+                tau = get_tau(mic_signals_list[i], mic_signals_list[j], d_mics, fs=fs, mode=method)
+                theta = get_direction(d_mics, tau, c=c)
+                mic_theta_list.append(theta)
+            else:
+                mic_theta_list.append(None)  # o np.nan si preferís
+            
+        theta_matrix.append(mic_theta_list)
+
+    tau_matrix = np.array(tau_matrix)
+    theta_matrix = np.array(theta_matrix, dtype=float)
+
+    if theta_matrix is not None:
+        theta_matrix = np.round(theta_matrix, 2)
+
+    # aplanamos
+    theta_matrix_flattened = np.array(theta_matrix).flatten()
+    # filtramos: nos quedamos sólo con valores que NO sean nan y NO sean 0
+    mask = (~np.isnan(theta_matrix_flattened)) & (theta_matrix_flattened != 0)
+    # aplicamos la máscara
+    theta_matrix_cleaned = theta_matrix_flattened[mask]
+    # promedio ya sin nan ni ceros
+    theta_prom = np.mean(theta_matrix_cleaned)
+
+    return theta_prom, theta_matrix
+
+
+
+
 def simulate(sim_config_name, anechoich=False):
     try:
         # 1) Levantamos los datos de la configuración de simulación
@@ -605,17 +602,10 @@ def process_simulation_data(*sim_configs, c=343, df_values=False, anechoich=Fals
             continue
 
         mic_signals = room.mic_array.signals
-    
-        sos_filter = filters.anti_alias_filter(c, d, fs, order=1)
-        mic_signals = [signal.sosfilt(sos_filter, x) for x in mic_signals]
 
         for method in methods:
             try:
-                tau_list = get_taus_n_mic(mic_signals, fs, mode=method)
-                est_theta_list = get_direction_n_signals(d, tau_list, c, fs)
-                est_theta_list = [np.round(x, 2) for x in est_theta_list]
-
-                theta_prom = np.mean(est_theta_list[1:])
+                theta_prom, theta_matrix = doa_system(mic_signals, d, fs, method=method)
                 error = angle_error(expected_theta, theta_prom)
 
                 row = {
@@ -624,7 +614,7 @@ def process_simulation_data(*sim_configs, c=343, df_values=False, anechoich=Fals
                     "expected_theta": expected_theta,
                     "theta_prom": round(theta_prom, 3),
                     "error": round(error, 5),
-                    "est_theta_list": est_theta_list
+                    "est_theta_list": theta_matrix
                 }
 
                 # Agregar valores extras con nombres como "mic_array.d"
